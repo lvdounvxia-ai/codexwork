@@ -37,6 +37,14 @@ const icon = {
 };
 
 const assetImages = [
+  ["person", "程秀（定制）", "#d9d9dd", "#3b3840"],
+  ["person", "Svetlana", "#ead5dd", "#9d6b82"],
+  ["person", "唐月宁", "#f5efe6", "#92836f"],
+  ["person", "谢灼华", "#421a22", "#d4aaa5"],
+  ["person", "阿萨德", "#25212d", "#b28a62"],
+  ["person", "卡米拉", "#211917", "#bb9a68"],
+  ["person", "许彦", "#d8dbe0", "#66748a"],
+  ["person", "周承", "#1d2529", "#88948f"],
   ["person", "女主 林晚", "#233048", "#8258d8"],
   ["person", "男主 周砚", "#2c3842", "#e06b78"],
   ["person", "少年配角", "#31263d", "#6eb4ff"],
@@ -86,6 +94,7 @@ function initialState() {
     confirm: null,
     previewNodeId: null,
     imageEditMode: null,
+    guideStep: null,
     openImageSelect: null,
     openExpandSelect: null,
     toast: "",
@@ -95,7 +104,9 @@ function initialState() {
 function loadState() {
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEY));
-    if (saved && saved.nodes && saved.edges) return { ...initialState(), ...saved, view: "projects", addMenu: null, drawer: null };
+    if (saved && saved.nodes && saved.edges) {
+      return { ...initialState(), ...saved, view: "projects", addMenu: null, drawer: null, guideStep: null };
+    }
   } catch (error) {
     console.warn(error);
   }
@@ -105,9 +116,13 @@ function loadState() {
 function persist() {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
-    const { addMenu, drawer, toast, confirm, previewNodeId, imageEditMode, openImageSelect, openExpandSelect, ...persisted } = state;
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
+    writePersistedState();
   }, 260);
+}
+
+function writePersistedState() {
+  const { addMenu, drawer, toast, confirm, previewNodeId, imageEditMode, guideStep, openImageSelect, openExpandSelect, ...persisted } = state;
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(persisted));
 }
 
 function captureState() {
@@ -165,7 +180,7 @@ function commonTopbar({ canvas = false } = {}) {
         <button class="brand" data-action="${canvas ? "back-projects" : "noop"}" title="返回项目列表">
           <span class="brand-mark"></span><span>剧梦</span>
         </button>
-        ${canvas ? `<div class="top-divider"></div><button class="hamburger" title="菜单">${icon.menu}</button><div class="canvas-title" data-title-wrap>${escapeHtml(state.title)}</div>` : ""}
+        ${canvas ? `<div class="top-divider"></div><button class="hamburger" data-action="back-projects" title="返回项目页">${icon.menu}</button><div class="canvas-title" data-title-wrap>${escapeHtml(state.title)}</div>` : ""}
       </div>
       <div class="top-right">
         <div class="top-pill">${icon.menu}<span style="color:#fff">任务队列</span><span class="queue-dot"></span>0<span class="queue-dot blue"></span>0</div>
@@ -243,9 +258,8 @@ function canvasPage() {
       ${commonTopbar({ canvas: true })}
       <aside class="canvas-toolbar">
         <button class="tool-btn primary" data-action="open-add-menu" title="添加节点">+</button>
-        <button class="tool-btn" data-action="upload-resource" title="上传资源">${icon.upload}</button>
         <button class="tool-btn" data-action="open-import" title="资产库导入">${icon.import}</button>
-        <button class="tool-btn" data-action="open-history" title="历史记录">${icon.clock}</button>
+        <button class="tool-btn" data-action="open-asset-library" title="导入资产">${icon.import}</button>
         <button class="tool-btn bottom" data-action="center-view" title="重置回中心">⌾</button>
       </aside>
       <input class="hidden-file" type="file" accept="image/png,image/jpeg" data-file-input />
@@ -265,10 +279,12 @@ function canvasPage() {
       </section>
       ${state.addMenu ? addMenuMarkup() : ""}
       ${state.drawer === "import" ? importDrawer() : ""}
+      ${state.drawer === "asset-library" ? assetLibraryDrawer() : ""}
       ${state.drawer === "history" ? historyDrawer() : ""}
       ${state.confirm ? confirmDialog() : ""}
       ${state.previewNodeId ? previewDialog() : ""}
       ${["inpaint", "annotate", "panorama", "crop"].includes(state.imageEditMode?.type) ? imageEditOverlay() : ""}
+      ${state.guideStep !== null ? canvasGuideMarkup() : ""}
       <div class="zoom-control">
         <button data-action="center-view" title="重置">↻</button>
         <div class="divider"></div>
@@ -290,6 +306,7 @@ function nodeMarkup(node) {
   const connecting = drag?.type === "edge" && drag.from !== node.id ? "connect-target" : "";
   const sizeStyle = `left:${node.x}px;top:${node.y}px;width:${node.w}px;height:${node.h}px;`;
   if (node.type === "text") {
+    const hasText = Boolean(node.text);
     return `
       <article class="node text-node ${selected} ${connecting}" data-node-id="${node.id}" style="${sizeStyle}">
         <span class="port in" data-port="in" data-node-id="${node.id}"></span>
@@ -298,10 +315,10 @@ function nodeMarkup(node) {
           ${icon.menu}<span>${escapeHtml(node.title)}</span><button data-action="copy-text" data-node-id="${node.id}" title="复制文本">${icon.copy}</button>
         </div>
         <div class="node-body">
-          ${node.text ? `<textarea data-node-text="${node.id}">${escapeHtml(node.text)}</textarea>` : textEmptyMarkup()}
+          ${hasText ? `<textarea data-node-text="${node.id}">${escapeHtml(node.text)}</textarea>` : textEmptyMarkup()}
         </div>
         ${selected ? `<span class="resize-handle" data-resize-handle data-node-id="${node.id}" title="拖动调整大小"></span>` : ""}
-        ${selected ? textComposer(node) : ""}
+        ${selected && !hasText ? textComposer(node) : ""}
       </article>
     `;
   }
@@ -574,6 +591,79 @@ function importDrawer() {
   `;
 }
 
+function assetLibraryDrawer() {
+  const keyword = state.assetSearch.trim();
+  const assets = assetImages.filter(asset => asset.category === "person" && (!keyword || asset.name.includes(keyword)));
+  const selected = assetImages.filter(asset => state.selectedAssets.includes(asset.id));
+  const preview = selected[0] || null;
+  return `
+    <div class="asset-import-mask">
+      <aside class="asset-library-modal">
+        <button class="asset-library-close" data-action="close-drawer" title="关闭">${icon.close}</button>
+        <header class="asset-library-head">
+          <h2>选择角色</h2>
+        </header>
+        <div class="asset-library-content">
+          <section class="asset-library-main">
+            <div class="library-tabs">
+              <button class="library-tab active">公共资产</button>
+              <button class="library-tab">团队资产</button>
+              <button class="library-tab">个人资产</button>
+              <button class="library-tab">我的收藏</button>
+            </div>
+            <div class="library-filter-row">
+              <button>选择地区 <span>⌄</span></button>
+              <button>选择性别 <span>⌄</span></button>
+              <button>选择年龄阶段 <span>⌄</span></button>
+              <button>选择风格 <span>⌄</span></button>
+              <label>开始日期 <span>→</span> 结束日期 <em>□</em></label>
+            </div>
+            <div class="library-card-grid">
+              ${assets.map((asset, index) => assetLibraryCard(asset, index)).join("")}
+            </div>
+          </section>
+          <aside class="asset-library-side">
+            <input class="library-search" data-asset-search placeholder="支持名称、描述、prompt搜索" value="${escapeHtml(state.assetSearch)}" />
+            <button class="library-sort">默认 <span>⌄</span></button>
+            <div class="library-side-preview">
+              <strong>选择角色的形象图片</strong>
+              ${preview ? `
+                <div class="library-preview-card">
+                  <img src="${preview.src}" alt="${escapeHtml(preview.name)}" />
+                  <span>${escapeHtml(preview.name)}</span>
+                </div>
+              ` : `
+                <div class="library-empty-state">${icon.box}<span>暂无角色形象图片</span></div>
+              `}
+            </div>
+          </aside>
+        </div>
+        <footer class="asset-library-footer">
+          <button class="asset-library-action" data-action="import-assets" ${selected.length ? "" : "disabled"}>替换当前图片</button>
+          <button class="asset-library-action" data-action="import-assets" ${selected.length ? "" : "disabled"}>导入为新形象</button>
+        </footer>
+      </aside>
+    </div>
+  `;
+}
+
+function assetLibraryCard(asset, index) {
+  const tags = [["少年感", "秀气"], ["甜心", "都市千金"], ["世家贵女", "端庄贵气"], ["江南藩主", "海棠系御姐"]];
+  const tagSet = tags[index % tags.length];
+  return `
+    <button class="asset-library-card ${state.selectedAssets.includes(asset.id) ? "selected" : ""}" data-action="toggle-asset" data-asset-id="${asset.id}">
+      <img src="${asset.src}" alt="${escapeHtml(asset.name)}" />
+      <span class="library-card-fade"></span>
+      <span class="library-card-count">${index % 2 === 0 ? "3" : "2"} 个形象</span>
+      <span class="library-card-like">♡ ${index % 3}</span>
+      <span class="library-card-meta">
+        <strong>${escapeHtml(asset.name)}</strong>
+        <em>${tagSet.map(tag => `<i>${escapeHtml(tag)}</i>`).join("")}</em>
+      </span>
+    </button>
+  `;
+}
+
 function assetTab(category, label) {
   return `<button class="asset-tab ${state.selectedAssetCategory === category ? "active" : ""}" data-action="select-asset-category" data-category="${category}">${label}</button>`;
 }
@@ -619,6 +709,52 @@ function historyDrawer() {
         <button class="secondary-action" data-action="undo">撤销</button>
       </div>
     </aside>
+  `;
+}
+
+function canvasGuideMarkup() {
+  const steps = [
+    {
+      title: "画布功能引导介绍",
+      body: "这里是自由创作画布，可以拖动画面、缩放视图，把文本、图片和生成结果用连线组织成故事流程。",
+      accent: "无限画布",
+      className: "canvas",
+    },
+    {
+      title: "添加节点",
+      body: "点击左侧加号，或双击画布空白处，可以添加文本节点和图片节点，开始写提示词、生成内容或连接上下游。",
+      accent: "添加",
+      className: "add",
+    },
+    {
+      title: "上传项目",
+      body: "点击左侧资产库导入按钮，从项目资产里选择人物、场景和道具，一次导入到当前画布继续创作。",
+      accent: "导入",
+      className: "upload",
+    },
+  ];
+  const stepIndex = clamp(Number(state.guideStep || 0), 0, steps.length - 1);
+  const step = steps[stepIndex];
+  return `
+    <div class="guide-layer guide-${step.className}">
+      <div class="guide-scrim"></div>
+      <div class="guide-spotlight" aria-hidden="true"></div>
+      <section class="guide-card">
+        <div class="guide-kicker"><span>${stepIndex + 1}</span><em>/ ${steps.length}</em>${escapeHtml(step.accent)}</div>
+        <h2>${escapeHtml(step.title)}</h2>
+        <p>${escapeHtml(step.body)}</p>
+        <div class="guide-dots">
+          ${steps.map((_, index) => `<span class="${index === stepIndex ? "active" : ""}"></span>`).join("")}
+        </div>
+        <div class="guide-actions">
+          <button class="secondary-action" data-action="skip-guide">${stepIndex === steps.length - 1 ? "关闭" : "跳过"}</button>
+          <div>
+            ${stepIndex > 0 ? `<button class="secondary-action" data-action="prev-guide">上一步</button>` : ""}
+            <button class="primary-action" data-action="next-guide">${stepIndex === steps.length - 1 ? "完成" : "下一步"}</button>
+          </div>
+        </div>
+      </section>
+    </div>
   `;
 }
 
@@ -794,6 +930,7 @@ function bindProjectPage() {
   document.querySelector('[data-action="create-canvas"]').addEventListener("click", () => {
     state.view = "canvas";
     state.title = state.title || "未命名项目";
+    state.guideStep = 0;
     snapshot("进入画布");
     persist();
     render();
@@ -863,7 +1000,21 @@ function handleAction(event) {
     state.view = "projects";
     state.addMenu = null;
     state.drawer = null;
+    state.guideStep = null;
     render();
+  }
+  if (action === "next-guide") {
+    advanceGuide();
+    return;
+  }
+  if (action === "prev-guide") {
+    state.guideStep = Math.max(0, Number(state.guideStep || 0) - 1);
+    render();
+    return;
+  }
+  if (action === "skip-guide") {
+    closeGuide();
+    return;
   }
   if (action === "open-add-menu") openAddMenu(66, 70, screenToWorldCenter());
   if (action === "add-text") addNode("text", state.addMenu.world);
@@ -872,6 +1023,12 @@ function handleAction(event) {
   if (action === "open-import") {
     state.drawer = state.drawer === "import" ? null : "import";
     state.addMenu = null;
+    render();
+  }
+  if (action === "open-asset-library") {
+    state.drawer = state.drawer === "asset-library" ? null : "asset-library";
+    state.addMenu = null;
+    state.selectedAssetCategory = "person";
     render();
   }
   if (action === "open-history") {
@@ -965,6 +1122,22 @@ function handleAction(event) {
   }
   if (action === "import-assets") importAssets();
   if (action === "undo") restoreLast();
+}
+
+function advanceGuide() {
+  const current = Number(state.guideStep || 0);
+  if (current >= 2) {
+    closeGuide();
+    return;
+  }
+  state.guideStep = current + 1;
+  render();
+}
+
+function closeGuide() {
+  state.guideStep = null;
+  persist();
+  render();
 }
 
 function openAddMenu(x, y, world) {
