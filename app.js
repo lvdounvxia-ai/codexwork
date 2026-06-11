@@ -281,6 +281,7 @@ function editorTemplate() {
               </div>
               <div class="script-box">
                 <div class="script-editor-wrap">
+                  <pre class="script-line-gutter" data-display-line-nos aria-hidden="true">${editorLineNumbers(displayText)}</pre>
                   <pre class="script-highlight" data-display-highlight aria-hidden="true">${highlightEditableScript(displayText)}</pre>
                   <textarea class="script-editor" data-display-editor spellcheck="false">${escapeHtml(displayText)}</textarea>
                 </div>
@@ -377,6 +378,11 @@ function highlightEditableScript(text) {
     .join("\n");
 }
 
+function editorLineNumbers(text) {
+  const lineCount = Math.max(1, text.split("\n").length);
+  return Array.from({ length: lineCount }, (_, index) => index + 1).join("\n");
+}
+
 function classifyLine(line) {
   if (/^第.+集/.test(line)) return "script-heading";
   if (/^\d+-\d+|^第.+场|^场景/.test(line)) return "script-scene";
@@ -428,16 +434,20 @@ function bindEvents() {
 
   const displayEditor = document.querySelector("[data-display-editor]");
   const displayHighlight = document.querySelector("[data-display-highlight]");
+  const displayLineNos = document.querySelector("[data-display-line-nos]");
   if (displayEditor) {
     displayEditor.addEventListener("input", () => {
       const scene = currentScene();
       if (scene) scene.display = displayEditor.value;
       if (displayHighlight) displayHighlight.innerHTML = highlightEditableScript(displayEditor.value);
+      if (displayLineNos) displayLineNos.textContent = editorLineNumbers(displayEditor.value);
     });
     displayEditor.addEventListener("scroll", () => {
-      if (!displayHighlight) return;
-      displayHighlight.scrollTop = displayEditor.scrollTop;
-      displayHighlight.scrollLeft = displayEditor.scrollLeft;
+      if (displayHighlight) {
+        displayHighlight.scrollTop = displayEditor.scrollTop;
+        displayHighlight.scrollLeft = displayEditor.scrollLeft;
+      }
+      if (displayLineNos) displayLineNos.scrollTop = displayEditor.scrollTop;
     });
   }
 

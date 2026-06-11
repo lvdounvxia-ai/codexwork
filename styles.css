@@ -832,14 +832,12 @@ h1 {
   overflow: hidden;
 }
 
+.script-line-gutter,
 .script-highlight,
 .script-editor {
   position: absolute;
-  inset: 0;
-  width: 100%;
   height: 100%;
   margin: 0;
-  padding: 18px 20px 60px;
   border: 0;
   line-height: 1.82;
   font-family: var(--font);
@@ -849,13 +847,32 @@ h1 {
   tab-size: 2;
 }
 
+.script-line-gutter {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 52px;
+  padding: 18px 0 60px 0;
+  overflow: hidden;
+  color: var(--muted-2);
+  text-align: right;
+  user-select: none;
+  pointer-events: none;
+}
+
 .script-highlight {
+  inset: 0;
+  width: 100%;
+  padding: 18px 20px 60px 66px;
   overflow: hidden;
   color: #e6e0d7;
   pointer-events: none;
 }
 
 .script-editor {
+  inset: 0;
+  width: 100%;
+  padding: 18px 20px 60px 66px;
   resize: none;
   outline: none;
   background: transparent;
