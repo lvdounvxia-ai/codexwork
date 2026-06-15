@@ -274,6 +274,28 @@ const state = {
   storyboardMode: "list",
   selectedStoryEpisode: 1,
   selectedStoryScene: 2,
+  editingAssetField: null,
+  assetGenerator: {
+    open: false,
+    type: "roles",
+    index: 0,
+    prompt: "",
+    model: "seedance 2.0fast",
+    ratio: "9:16",
+    viewMode: "主视图"
+  },
+  assetVoicePicker: {
+    open: false,
+    type: "roles",
+    index: 0
+  },
+  assetProfilePicker: {
+    open: false,
+    type: "roles",
+    index: 0
+  },
+  uploadRoleDraft: null,
+  rolesGenerated: true,
   modal: null,
   toast: "",
   appliedShot: false,
@@ -319,6 +341,11 @@ const iconMap = {
   edit: `<svg viewBox="0 0 24 24"><path d="M4 20h4l11-11-4-4L4 16z"/><path d="m13 7 4 4"/></svg>`,
   style: `<svg viewBox="0 0 24 24"><path d="M4 17 9.5 9l4 5 2.5-3 4 6z"/><path d="M5 5h14v14H5z"/><circle cx="9" cy="8" r="1.5"/></svg>`,
   upload: `<svg viewBox="0 0 24 24"><path d="M12 16V4"/><path d="m7 9 5-5 5 5"/><path d="M5 18v2h14v-2"/></svg>`,
+  download: `<svg viewBox="0 0 24 24"><path d="M12 4v12"/><path d="m7 11 5 5 5-5"/><path d="M5 20h14"/></svg>`,
+  trash: `<svg viewBox="0 0 24 24"><path d="M4 7h16"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M6.5 7l1 13h9l1-13"/><path d="M9 7V4.5h6V7"/></svg>`,
+  history: `<svg viewBox="0 0 24 24"><path d="M4 12a8 8 0 1 0 2.2-5.5"/><path d="M4 5.5v5h5"/><path d="M12 7.5V12l3 2"/></svg>`,
+  archive: `<svg viewBox="0 0 24 24"><path d="M4 5.5h16v4H4z"/><path d="M6 9.5V20h12V9.5"/><path d="M9 13h6"/></svg>`,
+  voice: `<svg viewBox="0 0 24 24"><path d="M5 10v4h4l5 4V6l-5 4z"/><path d="M17 9.5c1.3 1.4 1.3 3.6 0 5"/><path d="M19.5 7c2.6 2.9 2.6 7.1 0 10"/></svg>`,
   magic: `<svg viewBox="0 0 24 24"><path d="M12 2v5"/><path d="M12 17v5"/><path d="M2 12h5"/><path d="M17 12h5"/><path d="m5 5 3.5 3.5"/><path d="m15.5 15.5L19 19"/><path d="m19 5-3.5 3.5"/><path d="m8.5 15.5L5 19"/></svg>`,
   bell: `<svg viewBox="0 0 24 24"><path d="M6 17h12l-1.4-2V10a4.6 4.6 0 0 0-9.2 0v5z"/><path d="M10 20h4"/></svg>`,
   crown: `<svg viewBox="0 0 24 24"><path d="m4 8 4 4 4-7 4 7 4-4-2 10H6z"/></svg>`,
@@ -345,6 +372,7 @@ function appShell(content, opts = {}) {
         ${content}
       </main>
     </div>
+    <input id="roleImageUploadInput" class="file-input" type="file" accept="image/*" />
     ${state.modal ? modal() : ""}
     ${state.toast ? `<div class="toast">${state.toast}</div>` : ""}
   `;
@@ -770,6 +798,39 @@ function addEpisodeSceneFromModal() {
   toast(existingIndex >= 0 ? "已更新场次内容" : `已添加第${episode}集第${scene}场`);
 }
 
+function createUploadedRole() {
+  const draft = state.uploadRoleDraft || {};
+  const name = document.getElementById("uploadRoleName")?.value.trim();
+  const gender = document.getElementById("uploadRoleGender")?.value || "";
+  const age = document.getElementById("uploadRoleAge")?.value || "";
+  const voice = document.getElementById("uploadRoleVoice")?.value || "";
+  const intro = document.getElementById("uploadRoleIntro")?.value.trim();
+  if (!name) {
+    toast("请填写名字");
+    return;
+  }
+  if (!gender) {
+    toast("请选择性别");
+    return;
+  }
+  roleAssets.unshift({
+    name,
+    sheetIndex: 0,
+    imageUrl: draft.imageUrl || "",
+    intro: intro || "用户上传的角色形象，可继续补充描述与提示词。",
+    prompt: intro || "用户上传形象，保持人物一致性",
+    gender,
+    age,
+    voice,
+    uploaded: true
+  });
+  state.rolesGenerated = true;
+  state.uploadRoleDraft = null;
+  state.modal = null;
+  state.projectTab = "roles";
+  toast("已添加上传角色形象");
+}
+
 function assetTabs() {
   return `
     <div class="asset-tabs">
@@ -780,7 +841,7 @@ function assetTabs() {
   `;
 }
 
-function assetListView({ title, subtitle, actionText, items }) {
+function assetListView({ title, subtitle, actionText, action, uploadText, uploadAction, items }) {
   return `
     ${assetTabs()}
     <div class="project-content">
@@ -790,7 +851,10 @@ function assetListView({ title, subtitle, actionText, items }) {
             <div class="card-title" style="margin:0 0 8px">${title}</div>
             <div class="card-subtitle">${subtitle}</div>
           </div>
-          <button class="small-btn dark">${actionText}</button>
+          <div class="generation-actions">
+            ${uploadText ? `<button class="small-btn light" ${uploadAction ? `data-action="${uploadAction}"` : ""}>${uploadText}</button>` : ""}
+            <button class="small-btn dark" ${action ? `data-action="${action}"` : ""}>${actionText}</button>
+          </div>
         </div>
         <div class="role-grid">
           ${items.map((item, index) => assetCard(item, index)).join("")}
@@ -812,21 +876,28 @@ function assetRolesView() {
   return assetListView({
     title: "生成或导入角色形象图",
     subtitle: "已识别11个角色。可批量生成所有角色形象图，或上传自己的形象图。",
-    actionText: "多选",
+    actionText: "批量生成主角色图",
+    action: "batch-generate-roles",
+    uploadText: "上传",
+    uploadAction: "upload-role-image",
     items: roleAssets
   });
 }
 
 function roleCard(role, index = 0) {
-  const sheetX = role.sheetIndex % 3;
-  const sheetY = Math.floor(role.sheetIndex / 3);
+  const sheetX = (role.sheetIndex || 0) % 3;
+  const sheetY = Math.floor((role.sheetIndex || 0) / 3);
+  const generated = Boolean(role.imageUrl || state.rolesGenerated);
+  const imageCount = role.imageUrl ? "1/3" : generated ? "3/3" : "0/3";
   return `
     <article class="role-card" data-action="open-asset-detail" data-asset-type="roles" data-asset-index="${index}">
       <button class="role-image-btn" data-action="open-asset-detail" data-asset-type="roles" data-asset-index="${index}" aria-label="查看${role.name}形象图">
-        <span class="role-portrait" style="--sheet-x:${sheetX};--sheet-y:${sheetY}" aria-hidden="true"></span>
+        ${role.imageUrl ? `<img class="role-uploaded-img" src="${escapeHtml(role.imageUrl)}" alt="${escapeHtml(role.name)}" />` : generated ? `<span class="role-portrait" style="--sheet-x:${sheetX};--sheet-y:${sheetY}" aria-hidden="true"></span>` : `<span class="role-pending-portrait" aria-hidden="true"><span class="pending-face">☺</span></span>`}
       </button>
       <div class="role-info">
-        <button class="role-name" data-action="open-asset-detail" data-asset-type="roles" data-asset-index="${index}">${role.name}</button>
+        <button class="role-name" data-action="open-asset-detail" data-asset-type="roles" data-asset-index="${index}">
+          <span>${role.name}</span><span class="role-image-count">形象：${imageCount}</span>
+        </button>
         <button class="role-intro" data-action="open-asset-detail" data-asset-type="roles" data-asset-index="${index}">${role.intro}</button>
         <button class="role-prompt" data-action="open-asset-detail" data-asset-type="roles" data-asset-index="${index}">
           <span>提示词</span>${role.prompt}
@@ -840,7 +911,7 @@ function assetScenesView() {
   return assetListView({
     title: "生成或导入场景图",
     subtitle: "已识别67个场景。可批量生成场景素材，或上传自己的场景图。",
-    actionText: "批量生成",
+    actionText: "批量生成场景主图",
     items: sceneAssets
   });
 }
@@ -849,7 +920,7 @@ function assetPropsView() {
   return assetListView({
     title: "生成或导入道具图",
     subtitle: "已识别34个道具。可批量生成关键道具，或上传自己的道具图。",
-    actionText: "批量生成",
+    actionText: "批量生成道具主图",
     items: propAssets
   });
 }
@@ -865,6 +936,9 @@ function assetTypeLabel(type = state.assetDetail.type) {
 }
 
 function assetImageNode(asset, className = "detail-image-fill") {
+  if (asset.imageUrl) {
+    return `<img class="${className} asset-uploaded-detail-img" src="${escapeHtml(asset.imageUrl)}" alt="${escapeHtml(asset.name)}" />`;
+  }
   if (typeof asset.sheetIndex === "number") {
     const sheetX = asset.sheetIndex % 3;
     const sheetY = Math.floor(asset.sheetIndex / 3);
@@ -875,6 +949,23 @@ function assetImageNode(asset, className = "detail-image-fill") {
   return `<span class="${className} asset-sheet-thumb detail-sheet" style="--asset-x:${sheetX};--asset-y:${sheetY}" aria-hidden="true"></span>`;
 }
 
+function assetImageActions(asset, type, index) {
+  const secondaryAction = type === "props"
+    ? ""
+    : type === "scenes"
+    ? `<button class="asset-hero-tool" data-action="asset-panorama-preview" data-asset-type="${type}" data-asset-index="${index}" title="全景预览">${icon("style")}<span>全景预览</span></button>`
+    : `<button class="asset-hero-tool" data-action="asset-voice" data-asset-type="${type}" data-asset-index="${index}" title="音色">${icon("voice")}<span>音色</span></button>`;
+  return `
+    <div class="asset-hero-toolbar ${type === "props" ? "is-four" : ""}" aria-label="${asset.name}操作">
+      <button class="asset-hero-tool" data-action="asset-profile" data-asset-type="${type}" data-asset-index="${index}" title="档案">${icon("archive")}<span>档案</span></button>
+      ${secondaryAction}
+      <button class="asset-hero-tool" data-action="asset-history" data-asset-type="${type}" data-asset-index="${index}" title="历史">${icon("history")}<span>历史</span></button>
+      <button class="asset-hero-tool" data-action="asset-delete" data-asset-type="${type}" data-asset-index="${index}" title="删除">${icon("trash")}<span>删除</span></button>
+      <button class="asset-hero-tool" data-action="asset-download" data-asset-type="${type}" data-asset-index="${index}" title="下载">${icon("download")}<span>下载</span></button>
+    </div>
+  `;
+}
+
 function assetDetailView() {
   const type = state.assetDetail.type || "roles";
   const items = getAssetItems(type);
@@ -883,6 +974,9 @@ function assetDetailView() {
   const variants = Array.from({ length: 5 }, (_, offset) => items[(index + offset) % items.length]);
   const label = assetTypeLabel(type);
   const description = asset.intro || `当前${label}资产已用于项目设定，可继续生成不同形象与出场版本。`;
+  const generatorOpen = state.assetGenerator.open && state.assetGenerator.type === type;
+  const generatorIndex = Math.min(Math.max(Number(state.assetGenerator.index) || index, 0), items.length - 1);
+  const generatorAsset = items[generatorIndex] || asset;
   return `
     <div class="asset-detail-page">
       <div class="asset-detail-tabs">
@@ -891,19 +985,23 @@ function assetDetailView() {
           <button class="asset-detail-tab ${itemIndex === index ? "active" : ""}" data-action="open-asset-detail" data-asset-type="${type}" data-asset-index="${itemIndex}">${item.name}</button>
         `).join("")}
       </div>
-      <div class="asset-detail-canvas">
+      <div class="asset-detail-canvas ${type === "roles" ? "is-role" : ""} ${generatorOpen ? "has-generator" : ""}">
         <section class="asset-detail-summary">
-          <b>${asset.name}</b>
-          <span>${description}</span>
+          ${assetSummaryField(asset, type, index, "name", asset.name)}
+          ${assetSummaryField(asset, type, index, "intro", description)}
         </section>
 
-        <section class="asset-hero-card">
+        <section class="asset-hero-card ${type === "roles" ? "is-role" : ""}" data-action="open-asset-generator" data-asset-type="${type}" data-asset-index="${index}">
+          <div class="asset-card-title">${asset.name}：基础${label === "角色" ? "形象" : "素材"}</div>
+          ${assetImageActions(asset, type, index)}
+          ${isAssetProfilePickerOpen(type, index) ? assetProfilePopover(asset, type, index) : ""}
+          ${isAssetVoicePickerOpen(type, index) ? assetVoicePopover(asset) : ""}
           ${assetImageNode(asset)}
           <div class="asset-card-gradient">
-            <b>${asset.name}：基础${label === "角色" ? "形象" : "素材"}</b>
             <span>出现集数：第 1，2，3，4，5集</span>
           </div>
         </section>
+        ${generatorOpen ? assetTextGeneratorPanel(generatorAsset, type, generatorIndex) : ""}
 
         <button class="asset-add-btn" data-action="fake-generate">+</button>
         <svg class="asset-branch-lines" viewBox="0 0 1088 180" preserveAspectRatio="none" aria-hidden="true">
@@ -916,10 +1014,13 @@ function assetDetailView() {
 
         <div class="asset-variant-row">
           ${variants.map((variant, variantIndex) => `
-            <article class="asset-variant-card" data-action="open-asset-detail" data-asset-type="${type}" data-asset-index="${items.indexOf(variant)}">
+            <article class="asset-variant-card ${type === "roles" ? "is-role" : ""}" data-action="open-asset-generator" data-asset-type="${type}" data-asset-index="${items.indexOf(variant)}">
+              <div class="asset-card-title small">${variant.name}：基础${label === "角色" ? "形象" : "素材"}</div>
+              ${assetImageActions(variant, type, items.indexOf(variant))}
+              ${isAssetProfilePickerOpen(type, items.indexOf(variant)) ? assetProfilePopover(variant, type, items.indexOf(variant)) : ""}
+              ${isAssetVoicePickerOpen(type, items.indexOf(variant)) ? assetVoicePopover(variant) : ""}
               ${assetImageNode(variant, "detail-image-fill")}
               <div class="asset-card-gradient small">
-                <b>${variant.name}：基础${label === "角色" ? "形象" : "素材"}</b>
                 <span>出现集数：第 1，2，3，4，5集</span>
               </div>
             </article>
@@ -928,6 +1029,201 @@ function assetDetailView() {
       </div>
     </div>
   `;
+}
+
+function isAssetGeneratorOpen(type, index) {
+  const generator = state.assetGenerator;
+  return Boolean(generator.open && generator.type === type && generator.index === index);
+}
+
+function isAssetVoicePickerOpen(type, index) {
+  const picker = state.assetVoicePicker;
+  return Boolean(picker.open && picker.type === type && picker.index === index);
+}
+
+function isAssetProfilePickerOpen(type, index) {
+  const picker = state.assetProfilePicker;
+  return Boolean(picker.open && picker.type === type && picker.index === index);
+}
+
+function assetVoicePopover(asset) {
+  const voices = [`${asset.name}音色`, "清冷女声", "温柔叙事"];
+  return `
+    <div class="asset-voice-popover" data-asset-voice-popover>
+      <div class="asset-voice-title">音色选择</div>
+      ${voices.map((voice) => `
+        <div class="asset-voice-row">
+          <span class="asset-voice-name">${voice}</span>
+          <button data-action="preview-asset-voice" data-voice-name="${voice}">试听</button>
+          <button class="use" data-action="use-asset-voice" data-voice-name="${voice}">使用</button>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
+function assetProfilePopover(asset, type, index) {
+  const genderOptions = ["男", "女", "非人类"];
+  const ageOptions = ["婴幼儿", "未成年", "青少年", "青年", "中年", "老年"];
+  const gender = asset.gender || inferAssetGender(asset);
+  const age = asset.age || inferAssetAge(asset);
+  return `
+    <div class="asset-profile-popover" data-asset-profile-popover>
+      <div class="asset-profile-title">角色档案</div>
+      <label class="asset-profile-field">
+        <span>性别</span>
+        <select data-asset-profile-field="gender" data-asset-type="${type}" data-asset-index="${index}">
+          ${genderOptions.map((option) => `<option value="${option}" ${gender === option ? "selected" : ""}>${option}</option>`).join("")}
+        </select>
+      </label>
+      <label class="asset-profile-field">
+        <span>年龄</span>
+        <select data-asset-profile-field="age" data-asset-type="${type}" data-asset-index="${index}">
+          ${ageOptions.map((option) => `<option value="${option}" ${age === option ? "selected" : ""}>${option}</option>`).join("")}
+        </select>
+      </label>
+    </div>
+  `;
+}
+
+function inferAssetGender(asset) {
+  const text = `${asset.name || ""}${asset.intro || ""}${asset.prompt || ""}`;
+  if (/嬷嬷|女|侍女|裙|嫁衣|凤冠|她/.test(text)) return "女";
+  if (/将军|帝王|统领|世子|男|他/.test(text)) return "男";
+  return "非人类";
+}
+
+function inferAssetAge(asset) {
+  const text = `${asset.name || ""}${asset.intro || ""}${asset.prompt || ""}`;
+  if (/婴|幼/.test(text)) return "婴幼儿";
+  if (/少年|未成年/.test(text)) return "青少年";
+  if (/年长|老人|嬷嬷|老/.test(text)) return "老年";
+  if (/中年/.test(text)) return "中年";
+  return "青年";
+}
+
+function assetTextPromptCost(prompt = state.assetGenerator.prompt) {
+  return prompt.trim() ? 3 : 0;
+}
+
+function assetTextGeneratorPanel(asset, type, index) {
+  const generator = state.assetGenerator;
+  const prompt = generator.prompt || "";
+  const cost = assetTextPromptCost(prompt);
+  const generatorRatios = ["9:16", "16:9", "1:1", "3:4", "4:3"];
+  const generatorViewModes = ["主视图", "特写", "特写+三视图"];
+  const placeholder = asset.prompt
+    ? `输入你想生成的新形象描述，例如：${asset.prompt}`
+    : "输入你想生成的新画面描述，例如：雨夜长街，红衣人物，电影级柔光";
+  return `
+    <section class="asset-generator-panel ${cost ? "has-prompt" : ""}" data-asset-generator-panel>
+      <div class="asset-generator-composer">
+        <textarea class="asset-generator-prompt" data-asset-generator-prompt data-asset-type="${type}" data-asset-index="${index}" placeholder="${escapeHtml(placeholder)}">${escapeHtml(prompt)}</textarea>
+        <div class="asset-generator-controls">
+          <div class="asset-generator-options">
+            <label class="asset-generator-model">
+              <span>模型</span>
+              <select data-asset-generator-model data-asset-type="${type}" data-asset-index="${index}">
+                ${models.map((model) => `<option value="${escapeHtml(model)}" ${generator.model === model ? "selected" : ""}>${model}</option>`).join("")}
+              </select>
+            </label>
+            <label class="asset-generator-ratio">
+              <span>比例</span>
+              <select data-asset-generator-ratio data-asset-type="${type}" data-asset-index="${index}">
+                ${generatorRatios.map((ratio) => `<option value="${escapeHtml(ratio)}" ${(generator.ratio || "9:16") === ratio ? "selected" : ""}>${ratio}</option>`).join("")}
+              </select>
+            </label>
+            <label class="asset-generator-view">
+              <span>视图</span>
+              <select data-asset-generator-view data-asset-type="${type}" data-asset-index="${index}">
+                ${generatorViewModes.map((mode) => `<option value="${escapeHtml(mode)}" ${(generator.viewMode || "主视图") === mode ? "selected" : ""}>${mode}</option>`).join("")}
+              </select>
+            </label>
+          </div>
+          <div class="asset-generator-actions">
+            <span class="asset-generator-cost" data-asset-generator-cost>预计 <b>✦ ${cost || 3}</b></span>
+            <button class="asset-generator-submit" data-action="submit-asset-generator" data-asset-type="${type}" data-asset-index="${index}" aria-label="生成图片" title="生成图片">
+              ${icon("magic")}
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+  `;
+}
+
+function updateAssetGeneratorCost(panel, prompt) {
+  const cost = assetTextPromptCost(prompt);
+  panel.classList.toggle("has-prompt", Boolean(cost));
+  const costEl = panel.querySelector("[data-asset-generator-cost] b");
+  const submitCost = panel.querySelector("[data-asset-generator-submit-cost]");
+  if (costEl) costEl.textContent = `✦ ${cost || 3}`;
+  if (submitCost) submitCost.textContent = cost ? ` ✦ ${cost}` : "";
+}
+
+function isEditingAssetField(type, index, field) {
+  const editing = state.editingAssetField;
+  return Boolean(editing && editing.type === type && editing.index === index && editing.field === field);
+}
+
+function assetSummaryField(asset, type, index, field, value) {
+  const label = field === "name" ? "名字" : "介绍";
+  const isName = field === "name";
+  if (isEditingAssetField(type, index, field)) {
+    const common = `class="asset-summary-editor ${isName ? "is-name" : "is-intro"}" data-asset-summary-input data-asset-type="${type}" data-asset-index="${index}" data-field="${field}" aria-label="修改${label}"`;
+    return isName
+      ? `<input ${common} value="${escapeHtml(value)}" />`
+      : `<textarea ${common}>${escapeHtml(value)}</textarea>`;
+  }
+  return `
+    <button class="asset-summary-editable ${isName ? "is-name" : "is-intro"}" data-action="edit-asset-summary" data-asset-type="${type}" data-asset-index="${index}" data-field="${field}" aria-label="点击修改${label}">
+      ${isName ? `<b>${escapeHtml(value)}</b>` : `<span>${escapeHtml(value)}</span>`}
+    </button>
+  `;
+}
+
+function focusEditingAssetField() {
+  const editing = state.editingAssetField;
+  if (!editing) return;
+  requestAnimationFrame(() => {
+    const selector = `[data-asset-summary-input][data-asset-type="${editing.type}"][data-asset-index="${editing.index}"][data-field="${editing.field}"]`;
+    const input = document.querySelector(selector);
+    input?.focus();
+    input?.select?.();
+  });
+}
+
+function focusAssetGeneratorPrompt() {
+  const generator = state.assetGenerator;
+  if (!generator.open) return;
+  requestAnimationFrame(() => {
+    const selector = `[data-asset-generator-prompt][data-asset-type="${generator.type}"][data-asset-index="${generator.index}"]`;
+    document.querySelector(selector)?.focus();
+  });
+}
+
+function saveAssetSummaryField(input) {
+  const type = input.dataset.assetType || "roles";
+  const index = Math.max(0, Number(input.dataset.assetIndex) || 0);
+  const field = input.dataset.field;
+  const items = getAssetItems(type);
+  const asset = items[index];
+  if (!asset || !["name", "intro"].includes(field)) return;
+  const value = input.value.trim();
+  if (value) asset[field] = value;
+  state.editingAssetField = null;
+  render();
+}
+
+function saveAssetProfileField(input) {
+  const type = input.dataset.assetType || "roles";
+  const index = Math.max(0, Number(input.dataset.assetIndex) || 0);
+  const field = input.dataset.assetProfileField;
+  const items = getAssetItems(type);
+  const asset = items[index];
+  if (!asset || !["gender", "age"].includes(field)) return;
+  asset[field] = input.value;
+  render();
 }
 
 function assetCard(asset, index = 0) {
@@ -1307,6 +1603,49 @@ function pointsPage() {
 }
 
 function modal() {
+  if (state.modal === "upload-role") {
+    const draft = state.uploadRoleDraft || {};
+    const draftName = draft.name || "新角色";
+    const voices = ["", `${draftName}音色`, "清冷女声", "温柔叙事"];
+    const genders = ["女", "男", "非人类"];
+    const ages = ["", "婴幼儿", "未成年", "青少年", "青年", "中年", "老年"];
+    return `
+      <div class="modal-backdrop" data-action="close-modal">
+        <div class="modal upload-role-modal" data-stop>
+          <div class="modal-head">
+            <div>
+              <div class="modal-title">添加角色形象</div>
+              <div class="card-subtitle" style="margin-top:6px">${escapeHtml(draft.fileName || "已选择本地图片")}</div>
+            </div>
+            <button class="round" data-action="close-modal">${icon("close")}</button>
+          </div>
+          <div class="upload-role-body">
+            <div class="upload-role-preview">
+              ${draft.imageUrl ? `<img src="${escapeHtml(draft.imageUrl)}" alt="上传预览" />` : `<span class="pending-face">☺</span>`}
+            </div>
+            <div class="form-grid upload-role-form">
+              <div class="form-control"><label>名字 <b>*</b></label><input id="uploadRoleName" value="${escapeHtml(draftName)}" placeholder="请输入角色名字" /></div>
+              <div class="form-control"><label>性别 <b>*</b></label><select id="uploadRoleGender">${genders.map((gender) => `<option value="${gender}" ${gender === (draft.gender || "女") ? "selected" : ""}>${gender}</option>`).join("")}</select></div>
+              <div class="form-control"><label>年龄</label><select id="uploadRoleAge">${ages.map((age) => `<option value="${age}" ${age === (draft.age || "") ? "selected" : ""}>${age || "请选择"}</option>`).join("")}</select></div>
+              <div class="form-control full">
+                <label>音色</label>
+                <div class="upload-voice-row">
+                  <select id="uploadRoleVoice">${voices.map((voice) => `<option value="${voice}" ${voice === (draft.voice || "") ? "selected" : ""}>${voice || "请选择音色"}</option>`).join("")}</select>
+                  <button type="button" data-action="preview-upload-role-voice">试听</button>
+                  <button type="button" class="use" data-action="use-upload-role-voice">使用</button>
+                </div>
+              </div>
+              <div class="form-control full"><label>描述</label><textarea id="uploadRoleIntro" placeholder="可补充角色身份、性格或使用场景">${escapeHtml(draft.intro || "")}</textarea></div>
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="ghost-btn" data-action="close-modal">取消</button>
+            <button class="small-btn dark" data-action="create-upload-role">添加</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
   if (state.modal === "create") {
     return `
       <div class="modal-backdrop" data-action="close-modal">
@@ -1381,6 +1720,8 @@ function render() {
     points: pointsPage
   };
   document.getElementById("app").innerHTML = (routes[state.route] || homePage)();
+  focusEditingAssetField();
+  focusAssetGeneratorPrompt();
 }
 
 function toast(text) {
@@ -1436,9 +1777,18 @@ document.addEventListener("click", (event) => {
   const storyEpisode = Number(storyEpisodeEl?.dataset.storyEpisode);
   const storyScene = Number(storySceneEl?.dataset.storyScene);
   const storyboardEpisode = Number(actionEl?.dataset.storyboardEpisode || event.target.closest("[data-storyboard-episode]")?.dataset.storyboardEpisode);
+  const profilePopoverEl = event.target.closest("[data-asset-profile-popover]");
+  const voicePopoverEl = event.target.closest("[data-asset-voice-popover]");
 
-  if (state.modal && event.target.closest("[data-stop]") && action !== "close-modal" && action !== "create-project" && action !== "copy-code" && action !== "create-episode-scene") {
+  if ((profilePopoverEl || voicePopoverEl) && actionEl && !profilePopoverEl?.contains(actionEl) && !voicePopoverEl?.contains(actionEl)) {
     return;
+  }
+
+  const modalStopEl = event.target.closest("[data-stop]");
+  if (state.modal && modalStopEl) {
+    if (!actionEl || !modalStopEl.contains(actionEl)) return;
+    const allowedModalActions = ["close-modal", "create-project", "copy-code", "create-episode-scene", "create-upload-role", "preview-upload-role-voice", "use-upload-role-voice"];
+    if (!allowedModalActions.includes(action)) return;
   }
 
   if (action === "open-asset-detail") {
@@ -1451,6 +1801,9 @@ document.addEventListener("click", (event) => {
     state.modelOpen = false;
     state.styleOpen = false;
     state.ratioOpen = false;
+    state.assetGenerator.open = false;
+    state.assetVoicePicker.open = false;
+    state.assetProfilePicker.open = false;
     render();
     return;
   }
@@ -1595,12 +1948,30 @@ document.addEventListener("click", (event) => {
       render();
       break;
     case "close-modal":
+      if (state.modal === "upload-role") {
+        if (state.uploadRoleDraft?.imageUrl?.startsWith("blob:")) URL.revokeObjectURL(state.uploadRoleDraft.imageUrl);
+        state.uploadRoleDraft = null;
+      }
       state.modal = null;
       render();
       break;
     case "create-episode-scene":
       addEpisodeSceneFromModal();
       break;
+    case "create-upload-role":
+      createUploadedRole();
+      break;
+    case "preview-upload-role-voice": {
+      const voice = document.getElementById("uploadRoleVoice")?.value || "音色";
+      toast(`试听音色：${voice}`);
+      break;
+    }
+    case "use-upload-role-voice": {
+      const voice = document.getElementById("uploadRoleVoice")?.value || "音色";
+      if (state.uploadRoleDraft) state.uploadRoleDraft.voice = voice;
+      toast(`已使用音色：${voice}`);
+      break;
+    }
     case "create-project":
     case "create-from-home":
       state.modal = null;
@@ -1611,6 +1982,9 @@ document.addEventListener("click", (event) => {
       break;
     case "upload":
       document.getElementById("scriptUploadInput")?.click();
+      break;
+    case "upload-role-image":
+      document.getElementById("roleImageUploadInput")?.click();
       break;
     case "clear-upload":
       state.uploadedScript = null;
@@ -1627,13 +2001,90 @@ document.addEventListener("click", (event) => {
       state.route = "project";
       state.projectTab = "roles";
       state.assistantCollapsed = true;
+      state.rolesGenerated = false;
+      state.assetProfilePicker.open = false;
       toast("剧本资产已拆解，进入资产库");
+      break;
+    case "batch-generate-roles":
+      state.rolesGenerated = true;
+      toast("主角色图已批量生成");
       break;
     case "toast-edit":
       toast("项目信息已进入可编辑状态（Demo）");
       break;
     case "fake-generate":
       toast("已创建场景图生成任务");
+      break;
+    case "open-asset-generator":
+      state.assetVoicePicker.open = false;
+      state.assetProfilePicker.open = false;
+      state.assetGenerator = {
+        open: true,
+        type: actionEl.dataset.assetType || "roles",
+        index: Math.max(0, Number(actionEl.dataset.assetIndex) || 0),
+        prompt: "",
+        model: state.assetGenerator.model || state.selectedModel,
+        ratio: state.assetGenerator.ratio || "9:16",
+        viewMode: state.assetGenerator.viewMode || "主视图"
+      };
+      render();
+      break;
+    case "submit-asset-generator":
+      if (!state.assetGenerator.prompt.trim()) {
+        toast("请输入提示词后再生成");
+        break;
+      }
+      toast(`已提交文生图任务，消耗 ${assetTextPromptCost()} 积分`);
+      break;
+    case "asset-profile":
+      state.assetVoicePicker.open = false;
+      state.assetProfilePicker = {
+        open: !isAssetProfilePickerOpen(actionEl.dataset.assetType || "roles", Math.max(0, Number(actionEl.dataset.assetIndex) || 0)),
+        type: actionEl.dataset.assetType || "roles",
+        index: Math.max(0, Number(actionEl.dataset.assetIndex) || 0)
+      };
+      render();
+      break;
+    case "asset-voice":
+      state.assetProfilePicker.open = false;
+      state.assetVoicePicker = {
+        open: !isAssetVoicePickerOpen(actionEl.dataset.assetType || "roles", Math.max(0, Number(actionEl.dataset.assetIndex) || 0)),
+        type: actionEl.dataset.assetType || "roles",
+        index: Math.max(0, Number(actionEl.dataset.assetIndex) || 0)
+      };
+      render();
+      break;
+    case "asset-panorama-preview":
+      state.assetProfilePicker.open = false;
+      state.assetVoicePicker.open = false;
+      toast("已打开场景全景预览（Demo）");
+      break;
+    case "asset-history":
+      state.assetProfilePicker.open = false;
+      state.assetVoicePicker.open = false;
+      toast("已打开历史版本（Demo）");
+      break;
+    case "preview-asset-voice":
+      toast(`试听音色：${actionEl.dataset.voiceName || "音色"}`);
+      break;
+    case "use-asset-voice":
+      toast(`已使用音色：${actionEl.dataset.voiceName || "音色"}`);
+      state.assetVoicePicker.open = false;
+      render();
+      break;
+    case "asset-delete":
+      toast("已删除该形象图（Demo）");
+      break;
+    case "asset-download":
+      toast("已开始下载图片（Demo）");
+      break;
+    case "edit-asset-summary":
+      state.editingAssetField = {
+        type: actionEl.dataset.assetType || "roles",
+        index: Math.max(0, Number(actionEl.dataset.assetIndex) || 0),
+        field: actionEl.dataset.field || "name"
+      };
+      render();
       break;
     case "edit-role-field":
       toast(`点击修改：${actionEl.dataset.field || "角色信息"}`);
@@ -1673,9 +2124,36 @@ document.addEventListener("input", (event) => {
   if (event.target.id === "chatInput") {
     state.chatInput = event.target.value;
   }
+  if (event.target.matches("[data-asset-generator-prompt]")) {
+    state.assetGenerator.prompt = event.target.value;
+    const panel = event.target.closest("[data-asset-generator-panel]");
+    if (panel) updateAssetGeneratorCost(panel, event.target.value);
+  }
+});
+
+document.addEventListener("focusout", (event) => {
+  if (event.target.matches("[data-asset-summary-input]")) {
+    saveAssetSummaryField(event.target);
+  }
 });
 
 document.addEventListener("change", (event) => {
+  if (event.target.matches("[data-asset-generator-model]")) {
+    state.assetGenerator.model = event.target.value;
+    return;
+  }
+  if (event.target.matches("[data-asset-generator-ratio]")) {
+    state.assetGenerator.ratio = event.target.value;
+    return;
+  }
+  if (event.target.matches("[data-asset-generator-view]")) {
+    state.assetGenerator.viewMode = event.target.value;
+    return;
+  }
+  if (event.target.matches("[data-asset-profile-field]")) {
+    saveAssetProfileField(event.target);
+    return;
+  }
   if (event.target.id === "scriptUploadInput") {
     const file = event.target.files?.[0];
     if (!file) return;
@@ -1687,9 +2165,39 @@ document.addEventListener("change", (event) => {
     state.ratioOpen = false;
     render();
   }
+  if (event.target.id === "roleImageUploadInput") {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (state.uploadRoleDraft?.imageUrl?.startsWith("blob:")) URL.revokeObjectURL(state.uploadRoleDraft.imageUrl);
+    const name = file.name.replace(/\.[^.]+$/, "") || "新角色";
+    state.uploadRoleDraft = {
+      fileName: file.name,
+      name,
+      imageUrl: URL.createObjectURL(file),
+      gender: "女",
+      age: "",
+      voice: "",
+      intro: ""
+    };
+    event.target.value = "";
+    state.modal = "upload-role";
+    render();
+  }
 });
 
 document.addEventListener("keydown", (event) => {
+  if (event.target.matches("[data-asset-summary-input]")) {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault();
+      event.target.blur();
+      return;
+    }
+    if (event.key === "Escape") {
+      state.editingAssetField = null;
+      render();
+      return;
+    }
+  }
   if (event.key === "Enter" && !event.shiftKey && event.target.id === "chatInput") {
     event.preventDefault();
     sendChat();
