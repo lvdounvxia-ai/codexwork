@@ -997,8 +997,15 @@ function storyboardView() {
         <aside class="prompt-panel">
           ${storyOriginalBlock()}
           <div class="prompt-head">
-            <div class="card-title" style="margin:0">提示词</div>
-            <button class="project-tab" style="color:#8a17ff">创作指南 ↗</button>
+            <div class="story-current-wrap">
+              <button class="story-back-btn" data-action="back-storyboard-list">← 分集视频</button>
+              <div class="card-title" style="margin:0">提示词</div>
+              <span class="story-current-inline">第${state.selectedStoryEpisode}集 · 第${state.selectedStoryScene}场</span>
+            </div>
+            <div class="story-prompt-actions">
+              <button class="project-tab" style="color:#8a17ff">创作指南 ↗</button>
+              <button class="story-export-btn">▣ 导出</button>
+            </div>
           </div>
           <div class="prompt-empty">描述你的想法，@ 引用角色/资产/场景...</div>
           <div class="prompt-bottom">
@@ -1013,21 +1020,12 @@ function storyboardView() {
         </aside>
       </div>
       <section class="story-workspace">
-        <div class="story-toolbar">
-          <div class="story-current-wrap">
-            <button class="story-back-btn" data-action="back-storyboard-list">← 分集视频</button>
-            <div class="story-current">第${state.selectedStoryEpisode}集 • 第${state.selectedStoryScene}场</div>
-          </div>
-          <div style="display:flex;gap:10px">
-            <button class="ghost-btn">${icon("board")} 预览全集</button>
-            <button class="ghost-btn">▣ 导出</button>
-            <button class="ghost-btn" data-action="next-story">→ 下一集</button>
-          </div>
-        </div>
         <div class="video-box">
           <img class="video-scene-img" src="${A}story-main.png" alt="视频预览" />
           <div class="video-control"><b>Ⅱ</b><span>00:00 / 05:30</span><div class="progress"></div></div>
         </div>
+      </section>
+      <div class="story-shot-strip">
         <div class="shots">
           ${shotCard("1", "全景", "3s", "第1集：订婚惊变妹妹夺爱", "shot-rain.png", true)}
           ${shotCard("2", "中景", "3s", "第1集：订婚惊变妹妹夺爱", "shot-umbrella.png")}
@@ -1036,7 +1034,7 @@ function storyboardView() {
           ${shotCard("2", "中景", "3s", "第1集：订婚惊变妹妹夺爱", "shot-selfie.png")}
           ${state.appliedShot ? shotCard("3", "特写", "6s", "手机屏幕显示来电号码", "shot-selfie.png") : ""}
         </div>
-      </section>
+      </div>
     </div>
   `;
 }
@@ -1097,7 +1095,6 @@ function storyOriginalBlock() {
     <section class="original-block" aria-label="原文">
       <div class="original-head">
         <span>原文</span>
-        <em>不可修改</em>
       </div>
       <p>${escapeHtml(rawText)}</p>
     </section>
@@ -1450,7 +1447,7 @@ document.addEventListener("click", (event) => {
     state.route = "project";
     state.projectTab = "assetDetail";
     state.assetDetail = { type, index };
-    state.assistantCollapsed = false;
+    state.assistantCollapsed = true;
     state.modelOpen = false;
     state.styleOpen = false;
     state.ratioOpen = false;
@@ -1468,6 +1465,7 @@ document.addEventListener("click", (event) => {
   if (route) {
     state.route = route;
     if (route === "project" && !["episodes", "roles", "scenes", "props", "assetDetail", "storyboard"].includes(state.projectTab)) state.projectTab = "episodes";
+    if (route === "project") state.assistantCollapsed = true;
     state.modelOpen = false;
     state.styleOpen = false;
     state.ratioOpen = false;
@@ -1478,6 +1476,7 @@ document.addEventListener("click", (event) => {
     state.route = "project";
     state.projectTab = projectTab;
     if (projectTab === "storyboard") state.storyboardMode = "list";
+    state.assistantCollapsed = true;
     state.modelOpen = false;
     state.styleOpen = false;
     state.ratioOpen = false;
@@ -1535,6 +1534,7 @@ document.addEventListener("click", (event) => {
       state.route = "project";
       state.projectTab = "storyboard";
       state.storyboardMode = "editor";
+      state.assistantCollapsed = true;
       state.selectedStoryEpisode = storyboardEpisode || state.selectedStoryEpisode || 1;
       state.selectedStoryScene = 1;
       state.modelOpen = false;
@@ -1606,6 +1606,7 @@ document.addEventListener("click", (event) => {
       state.modal = null;
       state.route = "project";
       state.projectTab = "episodes";
+      state.assistantCollapsed = true;
       toast("项目已创建，进入剧集内容");
       break;
     case "upload":
