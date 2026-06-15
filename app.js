@@ -67,22 +67,67 @@ function render() {
   bindEvents();
 }
 
-function shell(inner) {
+function shell(inner, mode = "default") {
   return `
-    <div class="app">
-      <header class="topbar">
-        <div class="brand">
-          <span class="brand-mark"></span>
-          <span>漫剧脚本工坊</span>
-        </div>
-        <div class="top-actions">
-          <span class="status-pill">创作状态｜国内推文</span>
-          <span class="status-pill">任务队列 · 0 · 0</span>
-          <span class="credit">19520</span>
-        </div>
-      </header>
+    <div class="app ${mode === "editor" ? "editor-mode" : ""}">
+      ${
+        mode === "editor"
+          ? ""
+          : `
+        <header class="topbar">
+          <div class="brand">
+            <span class="brand-mark"></span>
+            <span>漫剧脚本工坊</span>
+          </div>
+          <div class="top-actions">
+            <span class="status-pill">创作状态｜国内推文</span>
+            <span class="status-pill">任务队列 · 0 · 0</span>
+            <span class="credit">19520</span>
+          </div>
+        </header>
+      `
+      }
       ${inner}
     </div>
+  `;
+}
+
+function editorRouteTemplate() {
+  return `
+    <div class="editor-routebar">
+      <button type="button" class="editor-back" data-action="back-upload">‹ 返回</button>
+      <nav class="editor-flow" aria-label="创作步骤">
+        <span class="editor-flow-item active">剧本内容</span>
+        <span class="editor-flow-arrow">›</span>
+        <span class="editor-flow-item">贡献要素</span>
+        <span class="editor-flow-arrow">›</span>
+        <span class="editor-flow-item">分镜视频</span>
+      </nav>
+    </div>
+  `;
+}
+
+function editorTitleTemplate(scene) {
+  return `
+    <section class="editor-titlebar">
+      <div class="editor-title-left">
+        <span class="editor-spark">✣</span>
+        <div>
+          <h1>剧本编辑</h1>
+          <p>${escapeHtml(scene?.episodeTitle || "第一集")} · ${escapeHtml(scene?.title || "第一场")}｜${escapeHtml(scene?.summary || "已完成初步结构化")}</p>
+        </div>
+      </div>
+      <div class="editor-actions">
+        <button type="button" class="link-button" data-action="help">帮助文档</button>
+        <select class="small-button" data-action="export">
+          <option>导出剧本</option>
+          <option>导出 TXT</option>
+          <option>导出 JSON</option>
+        </select>
+        <button type="button" class="small-button" data-action="replace">替换剧本</button>
+        <button type="button" class="primary-button" data-action="next-step">下一步</button>
+      </div>
+    </section>
   `;
 }
 
@@ -237,46 +282,40 @@ function editorTemplate() {
   const displayText = scene?.display || scene?.generated || "";
   return shell(`
     <main class="editor-page">
-      ${routeTemplate()}
+      ${editorRouteTemplate()}
+      ${editorTitleTemplate(scene)}
       <section class="editor-shell">
-        <aside class="sidebar">
-          <div class="sidebar-head">
-            <h2>剧本编辑</h2>
-            <div class="meta-line">${escapeHtml(state.sourceLabel)} · ${state.episodes.length} 集 · ${countScenes()} 场</div>
-          </div>
+        <div class="workbench-tabs">
+          <button type="button" class="tab-button active">剧本编辑</button>
+          <button type="button" class="tab-button">剧本预览</button>
+        </div>
+        <div class="workbench-metrics">
+          <div class="workbench-source">剧集 ｜ ${state.episodes.length} 集</div>
           <div class="metric-row">
             <span class="metric">字数 ${countCharacters(state.rawText)}</span>
             <span class="metric">对白 ${dialogueRatio()}%</span>
             <span class="metric">阅读 19分钟</span>
+            <span class="metric">拍摄 约19分钟</span>
           </div>
+          <div class="remote-save">
+            <span>✓ 远程已保存 ${state.lastSaved === "未保存" ? "11:17:12" : escapeHtml(state.lastSaved.replace("已保存 ", ""))}</span>
+            <button type="button" class="title-save-button" data-action="save-preview">保存</button>
+          </div>
+        </div>
+        <div class="editor-body">
+          <aside class="sidebar">
           <div class="episode-list">
             ${state.episodes.map(episodeTemplate).join("")}
           </div>
-        </aside>
+          </aside>
 
-        <section class="content">
-          <div class="toolbar">
-            <div class="toolbar-main">
-              <div class="toolbar-title">${escapeHtml(scene?.episodeTitle || "第一集")} · ${escapeHtml(scene?.title || "第一场")}</div>
-              <div class="toolbar-sub">${escapeHtml(scene?.summary || "已完成初步结构化")}</div>
-            </div>
-            <button type="button" class="link-button" data-action="help">帮助文档</button>
-            <select class="small-button" data-action="export">
-              <option>导出剧本</option>
-              <option>导出 TXT</option>
-              <option>导出 JSON</option>
-            </select>
-            <button type="button" class="small-button" data-action="replace">替换剧本</button>
-            <button type="button" class="primary-button" data-action="next-step">下一步</button>
-          </div>
-
+          <section class="content">
           <div class="compare-grid">
             <section class="pane">
               <div class="split-title">
                 <h3>导入修正后预览区</h3>
                 <div class="split-actions">
                   <span>JSON 保留给代码校验，用户端展示剧本格式</span>
-                  <button type="button" class="title-save-button" data-action="save-preview">保存</button>
                 </div>
               </div>
               <div class="script-box">
@@ -297,11 +336,12 @@ function editorTemplate() {
               </div>
             </section>
           </div>
-        </section>
+          </section>
+        </div>
         ${countIssues() ? issuePopoverTemplate() : ""}
       </section>
     </main>
-  `);
+  `, "editor");
 }
 
 function episodeTemplate(episode, episodeIndex) {
