@@ -326,15 +326,6 @@ function editorTemplate() {
                 </div>
               </div>
             </section>
-            <section class="pane">
-              <div class="split-title">
-                <h3>导入原文预览区</h3>
-                <span>原文对照</span>
-              </div>
-              <div class="script-box">
-                <div class="script-paper">${scriptLines(scene?.raw || "")}</div>
-              </div>
-            </section>
           </div>
           </section>
         </div>
@@ -463,7 +454,7 @@ function bindEvents() {
         state.lastSaved = "已保存 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
         render();
       }
-      if (action === "help") alert("Demo 提示：左侧选择集和场，右侧保留导入原文，左侧显示结构化后的漫剧脚本。");
+      if (action === "help") alert("Demo 提示：左侧选择集和场，预览区展示结构化后的漫剧脚本，可直接修改并保存。");
     });
   });
 

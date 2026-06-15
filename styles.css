@@ -878,7 +878,7 @@ h1 {
 .compare-grid {
   min-height: 0;
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   height: 100%;
 }
 
@@ -887,10 +887,6 @@ h1 {
   min-height: 0;
   display: grid;
   grid-template-rows: auto 1fr;
-  border-right: 1px solid #383237;
-}
-
-.pane:last-child {
   border-right: 0;
 }
 
