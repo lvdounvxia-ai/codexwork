@@ -889,7 +889,8 @@ h1 {
   border-right: 0;
 }
 
-.title-save-button {
+.title-save-button,
+.title-check-button {
   height: 30px;
   padding: 0 12px;
   flex: 0 0 auto;
@@ -902,6 +903,18 @@ h1 {
 .title-save-button:hover {
   border-color: var(--teal);
   color: var(--teal);
+}
+
+.title-check-button {
+  min-width: 70px;
+  color: #ff69a9;
+  background: rgba(255, 105, 169, 0.1);
+  border-color: rgba(255, 105, 169, 0.48);
+}
+
+.title-check-button:hover {
+  color: #ff8ac0;
+  border-color: #ff69a9;
 }
 
 .script-box {
@@ -1044,42 +1057,73 @@ h1 {
 
 .issue-popover {
   position: absolute;
-  right: 26px;
-  top: 190px;
-  width: 266px;
-  padding: 14px;
+  right: 24px;
+  top: 214px;
+  z-index: 5;
+  width: 296px;
+  padding: 16px;
   border-radius: 8px;
-  background: #202226;
-  border: 1px solid #51434b;
+  background: #242124;
+  border: 1px solid #484148;
   box-shadow: var(--shadow);
 }
 
-.issue-popover h3 {
-  color: var(--coral);
-  font-size: 15px;
+.issue-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.issue-warning {
+  color: #ff6666;
+  font-size: 24px;
+  line-height: 1;
+}
+
+.issue-head h3 {
+  flex: 1;
+  color: #ff6666;
+  font-size: 18px;
+  font-weight: 800;
+}
+
+.issue-chevron {
+  color: #c9c4c8;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.issue-tip {
+  margin: 14px 0 0;
+  padding-top: 14px;
+  border-top: 1px solid #3b363b;
+  color: #8d858c;
+  font-size: 13px;
 }
 
 .issue-list {
   margin-top: 12px;
   display: grid;
-  gap: 10px;
+  gap: 16px;
 }
 
 .issue {
   align-items: flex-start;
-  gap: 9px;
-  color: #d5d7db;
-  font-size: 13px;
+  gap: 12px;
+  color: #ff6666;
+  font-size: 15px;
+  font-weight: 800;
   line-height: 1.5;
 }
 
-.issue-dot {
-  width: 7px;
-  height: 7px;
+.issue-checkbox {
+  width: 22px;
+  height: 22px;
   flex: 0 0 auto;
-  margin-top: 6px;
-  border-radius: 50%;
-  background: var(--coral);
+  margin-top: 1px;
+  border-radius: 6px;
+  border: 2px solid #716a70;
+  background: #2b282b;
 }
 
 .empty-state {

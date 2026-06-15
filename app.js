@@ -57,7 +57,10 @@ const state = {
   toast: "",
   lastSaved: "未保存",
   loadingLabel: "",
+  showValidationIssues: false,
 };
+
+const DEMO_VALIDATION_ISSUES = ["第 3 行：缺少场次头", "第 22 行：场号不连续"];
 
 const app = document.querySelector("#app");
 let loadingTimer = null;
@@ -300,6 +303,7 @@ function editorTemplate() {
           <div class="remote-save">
             <span>✓ 远程已保存 ${state.lastSaved === "未保存" ? "11:17:12" : escapeHtml(state.lastSaved.replace("已保存 ", ""))}</span>
             <button type="button" class="title-save-button" data-action="save-preview">保存</button>
+            <button type="button" class="title-check-button" data-action="validate-preview">校验</button>
           </div>
         </div>
         <div class="editor-body">
@@ -323,7 +327,7 @@ function editorTemplate() {
           </div>
           </section>
         </div>
-        ${countIssues() ? issuePopoverTemplate() : ""}
+        ${state.showValidationIssues ? issuePopoverTemplate() : ""}
       </section>
     </main>
   `, "editor");
@@ -354,16 +358,20 @@ function episodeTemplate(episode, episodeIndex) {
 }
 
 function issuePopoverTemplate() {
-  const scene = currentScene();
   return `
     <aside class="issue-popover">
-      <h3>${countIssues()} 处格式问题</h3>
+      <div class="issue-head">
+        <span class="issue-warning">△</span>
+        <h3>${DEMO_VALIDATION_ISSUES.length} 处格式问题</h3>
+        <span class="issue-chevron">⌄</span>
+      </div>
+      <p class="issue-tip">修改错误后行号定位可能会有误差</p>
       <div class="issue-list">
-        ${(scene?.issues || [])
+        ${DEMO_VALIDATION_ISSUES
           .map(
             (issue) => `
               <div class="issue">
-                <span class="issue-dot"></span>
+                <span class="issue-checkbox"></span>
                 <span>${escapeHtml(issue)}</span>
               </div>
             `
@@ -448,6 +456,11 @@ function bindEvents() {
         state.lastSaved = "已保存 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
         render();
       }
+      if (action === "validate-preview") {
+        syncDisplayEditor();
+        state.showValidationIssues = true;
+        render();
+      }
       if (action === "help") alert("Demo 提示：左侧选择集和场，预览区展示结构化后的漫剧脚本，可直接修改并保存。");
     });
   });
@@ -496,6 +509,7 @@ function bindEvents() {
       syncDisplayEditor();
       state.activeEpisode = Number(button.dataset.episode);
       state.activeScene = 0;
+      state.showValidationIssues = false;
       render();
     });
   });
@@ -506,6 +520,7 @@ function bindEvents() {
       const [episodeIndex, sceneIndex] = button.dataset.scene.split(":").map(Number);
       state.activeEpisode = episodeIndex;
       state.activeScene = sceneIndex;
+      state.showValidationIssues = false;
       render();
     });
   });
@@ -555,6 +570,7 @@ function importText(text, label) {
   state.activeScene = 0;
   state.view = "loading";
   state.lastSaved = "未保存";
+  state.showValidationIssues = false;
   render();
   loadingTimer = setTimeout(() => completeImport(normalized, label), 3000);
 }
@@ -568,6 +584,7 @@ function completeImport(normalized, label) {
   state.view = "editor";
   state.loadingLabel = "";
   state.lastSaved = "远程已保存 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
+  state.showValidationIssues = false;
   loadingTimer = null;
   render();
 }
