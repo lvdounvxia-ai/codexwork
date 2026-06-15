@@ -760,7 +760,7 @@ h1 {
 
 .workbench-metrics {
   display: grid;
-  grid-template-columns: 392px minmax(0, 1fr) auto;
+  grid-template-columns: 320px minmax(0, 1fr) auto;
   align-items: center;
   min-height: 0;
   border-bottom: 1px solid #383237;
@@ -790,7 +790,7 @@ h1 {
 .editor-body {
   min-height: 0;
   display: grid;
-  grid-template-columns: 392px minmax(0, 1fr);
+  grid-template-columns: 320px minmax(0, 1fr);
 }
 
 .sidebar {
@@ -1126,7 +1126,7 @@ h1 {
 @media (max-width: 1200px) {
   .workbench-metrics,
   .editor-body {
-    grid-template-columns: 280px minmax(0, 1fr);
+    grid-template-columns: 240px minmax(0, 1fr);
   }
 
   .workbench-source {
