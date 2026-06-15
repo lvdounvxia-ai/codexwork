@@ -312,12 +312,6 @@ function editorTemplate() {
           <section class="content">
           <div class="compare-grid">
             <section class="pane">
-              <div class="split-title">
-                <h3>导入修正后预览区</h3>
-                <div class="split-actions">
-                  <span>JSON 保留给代码校验，用户端展示剧本格式</span>
-                </div>
-              </div>
               <div class="script-box">
                 <div class="script-editor-wrap">
                   <pre class="script-line-gutter" data-display-line-nos aria-hidden="true">${editorLineNumbers(displayText)}</pre>

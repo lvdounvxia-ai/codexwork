@@ -75,7 +75,6 @@ button {
 .steps,
 .step,
 .toolbar,
-.split-title,
 .metric-row,
 .issue,
 .episode-title,
@@ -886,33 +885,8 @@ h1 {
   min-width: 0;
   min-height: 0;
   display: grid;
-  grid-template-rows: auto 1fr;
+  grid-template-rows: 1fr;
   border-right: 0;
-}
-
-.split-title {
-  justify-content: space-between;
-  gap: 12px;
-  padding: 14px 18px;
-  border-bottom: 1px solid #383237;
-  background: #201d1f;
-}
-
-.split-title h3 {
-  font-size: 15px;
-}
-
-.split-title span {
-  color: var(--muted);
-  font-size: 12px;
-}
-
-.split-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-  min-width: 0;
 }
 
 .title-save-button {
