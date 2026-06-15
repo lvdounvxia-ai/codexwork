@@ -58,6 +58,7 @@ const state = {
   lastSaved: "未保存",
   loadingLabel: "",
   showValidationIssues: false,
+  validationStatus: "idle",
 };
 
 const DEMO_VALIDATION_ISSUES = ["第 3 行：缺少场次头", "第 22 行：场号不连续"];
@@ -358,6 +359,17 @@ function episodeTemplate(episode, episodeIndex) {
 }
 
 function issuePopoverTemplate() {
+  if (state.validationStatus === "fixed") {
+    return `
+      <aside class="issue-popover issue-popover-success">
+        <div class="issue-head">
+          <span class="issue-success-mark">✓</span>
+          <h3>AI 已自动补全</h3>
+        </div>
+        <p class="issue-tip">已补齐缺失场次头，并修正不连续场号。可继续保存或进入下一步。</p>
+      </aside>
+    `;
+  }
   return `
     <aside class="issue-popover">
       <div class="issue-head">
@@ -378,6 +390,7 @@ function issuePopoverTemplate() {
           )
           .join("")}
       </div>
+      <button type="button" class="ai-fix-button" data-action="ai-fix-issues">AI自动补全</button>
     </aside>
   `;
 }
@@ -459,6 +472,14 @@ function bindEvents() {
       if (action === "validate-preview") {
         syncDisplayEditor();
         state.showValidationIssues = true;
+        state.validationStatus = "failed";
+        render();
+      }
+      if (action === "ai-fix-issues") {
+        syncDisplayEditor();
+        state.showValidationIssues = true;
+        state.validationStatus = "fixed";
+        state.lastSaved = "已保存 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
         render();
       }
       if (action === "help") alert("Demo 提示：左侧选择集和场，预览区展示结构化后的漫剧脚本，可直接修改并保存。");
@@ -510,6 +531,7 @@ function bindEvents() {
       state.activeEpisode = Number(button.dataset.episode);
       state.activeScene = 0;
       state.showValidationIssues = false;
+      state.validationStatus = "idle";
       render();
     });
   });
@@ -521,6 +543,7 @@ function bindEvents() {
       state.activeEpisode = episodeIndex;
       state.activeScene = sceneIndex;
       state.showValidationIssues = false;
+      state.validationStatus = "idle";
       render();
     });
   });
@@ -571,6 +594,7 @@ function importText(text, label) {
   state.view = "loading";
   state.lastSaved = "未保存";
   state.showValidationIssues = false;
+  state.validationStatus = "idle";
   render();
   loadingTimer = setTimeout(() => completeImport(normalized, label), 3000);
 }
@@ -585,6 +609,7 @@ function completeImport(normalized, label) {
   state.loadingLabel = "";
   state.lastSaved = "远程已保存 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
   state.showValidationIssues = false;
+  state.validationStatus = "idle";
   loadingTimer = null;
   render();
 }

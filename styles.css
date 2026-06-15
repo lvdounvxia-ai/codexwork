@@ -1126,6 +1126,39 @@ h1 {
   background: #2b282b;
 }
 
+.ai-fix-button {
+  width: 100%;
+  height: 40px;
+  margin-top: 18px;
+  border-radius: 8px;
+  color: #160910;
+  font-weight: 900;
+  background: #ff69a9;
+}
+
+.ai-fix-button:hover {
+  background: #ff8abe;
+}
+
+.issue-popover-success {
+  border-color: rgba(72, 214, 201, 0.5);
+}
+
+.issue-success-mark {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: #08110f;
+  background: var(--teal);
+  font-weight: 900;
+}
+
+.issue-popover-success .issue-head h3 {
+  color: var(--teal);
+}
+
 .empty-state {
   height: 100%;
   display: grid;
