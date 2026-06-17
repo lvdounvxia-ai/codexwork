@@ -1368,6 +1368,25 @@ button,
   font-weight: 850;
 }
 
+.episode-imported-body {
+  display: grid;
+  gap: 14px;
+  border-radius: 14px;
+  cursor: text;
+  transition: outline-color .18s ease, background .18s ease;
+}
+
+.episode-imported-body:hover {
+  background: #fdfbff;
+  outline: 2px solid #efe5ff;
+  outline-offset: 8px;
+}
+
+.episode-imported-body:focus-visible {
+  outline: 2px solid #8a17ff;
+  outline-offset: 8px;
+}
+
 .people-row {
   display: flex;
   align-items: center;
@@ -1671,6 +1690,88 @@ button,
   flex-shrink: 0;
 }
 
+.selection-strip {
+  min-height: 72px;
+  border-radius: 14px;
+  background: #fbf8ff;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  margin-bottom: 24px;
+}
+
+.select-all-control {
+  min-height: 36px;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--deep);
+  font-size: 14px;
+  font-weight: 850;
+  padding: 0 4px 0 0;
+}
+
+.selection-check,
+.asset-card-select {
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid #e6e2ee;
+  background: #fff;
+  color: #fff;
+  font-size: 15px;
+  font-weight: 950;
+  line-height: 1;
+}
+
+.select-all-control.active .selection-check,
+.role-card.selected .asset-card-select {
+  border-color: #8a17ff;
+  background: #8a17ff;
+  box-shadow: 0 8px 18px rgba(138, 23, 255, 0.22);
+}
+
+.selection-help {
+  color: #8a87a3;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.selection-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.selection-cancel,
+.selection-generate {
+  min-height: 42px;
+  border-radius: 10px;
+  padding: 0 20px;
+  font-weight: 850;
+}
+
+.selection-cancel {
+  background: #fff;
+  color: var(--deep);
+}
+
+.selection-generate {
+  background: var(--deep);
+  color: #fff;
+}
+
+.selection-generate span {
+  color: #b35cff;
+  margin-left: 4px;
+}
+
 .role-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1688,6 +1789,30 @@ button,
   gap: 9px;
   padding: 10px;
   overflow: hidden;
+  position: relative;
+}
+
+.role-card.is-selectable {
+  cursor: pointer;
+  padding-right: 38px;
+}
+
+.role-card.is-selectable:hover {
+  border-color: #d7cbff;
+  box-shadow: 0 12px 28px rgba(39, 31, 74, 0.08);
+}
+
+.role-card.selected {
+  border-color: #c6b3ff;
+  box-shadow: 0 0 0 1px #c6b3ff, 0 14px 30px rgba(88, 57, 164, 0.12);
+}
+
+.asset-card-select {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 3;
+  pointer-events: none;
 }
 
 .role-image-btn {
@@ -1917,11 +2042,48 @@ button,
   border: 1px solid var(--line);
   border-radius: 16px;
   background: #fff;
-  display: grid;
-  gap: 5px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   color: #8a87a3;
   font-size: 12px;
   line-height: 1.55;
+}
+
+.asset-summary-copy {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  flex: 1;
+}
+
+.asset-summary-upload {
+  min-width: 86px;
+  height: 38px;
+  border-radius: 12px;
+  border: 1px solid #ded7ee;
+  background: #fff;
+  color: var(--deep);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-size: 13px;
+  font-weight: 850;
+  flex: 0 0 auto;
+  box-shadow: 0 8px 18px rgba(31, 27, 55, 0.06);
+}
+
+.asset-summary-upload:hover {
+  transform: translateY(-1px);
+  border-color: #cdbdff;
+  box-shadow: 0 12px 24px rgba(31, 27, 55, 0.1);
+}
+
+.asset-summary-upload .ico {
+  width: 15px;
+  height: 15px;
 }
 
 .asset-detail-summary b,
@@ -2997,6 +3159,28 @@ button,
   font-weight: 900;
 }
 
+.story-asset-upload-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 12px;
+  border: 1px solid #e2def0;
+  border-radius: 999px;
+  background: #fff;
+  color: #171329;
+  font-size: 13px;
+  font-weight: 800;
+  white-space: nowrap;
+  box-shadow: 0 8px 18px rgba(27, 20, 54, 0.06);
+}
+
+.story-asset-upload-btn .ico,
+.story-asset-upload-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
 .asset-add-btn {
   width: 28px;
   height: 28px;
@@ -3057,7 +3241,8 @@ button,
 }
 
 .story-role-thumb,
-.story-scene-thumb {
+.story-scene-thumb,
+.story-prop-thumb {
   width: 100%;
   height: 100%;
   display: block;
@@ -3074,7 +3259,8 @@ button,
   background-position: calc(var(--sheet-x) * 50%) calc(var(--sheet-y) * 50%);
 }
 
-.story-scene-thumb {
+.story-scene-thumb,
+.story-prop-thumb {
   background-image: url("./assets/asset-thumbnails-sheet.png");
   background-size: 300% 400%;
   background-position: calc(var(--asset-x) * 50%) calc(var(--asset-y) * 33.333333%);
@@ -3137,7 +3323,7 @@ button,
 }
 
 .story-switcher {
-  min-height: clamp(430px, calc(100vh - 226px), 540px);
+  min-height: calc(100vh - 226px);
   padding: 10px 8px;
   border: 1px solid var(--line);
   border-radius: 12px;
@@ -3514,6 +3700,145 @@ button,
   width: min(760px, calc(100vw - 48px));
 }
 
+.batch-modal-backdrop {
+  background: rgba(0, 0, 0, 0.68);
+}
+
+.batch-generate-modal {
+  width: min(620px, calc(100vw - 48px));
+  padding: 0;
+  overflow: hidden;
+  border-radius: 16px;
+  box-shadow: 0 34px 90px rgba(0, 0, 0, 0.28);
+}
+
+.batch-modal-head {
+  min-height: 92px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 24px;
+  border-bottom: 1px solid var(--line);
+}
+
+.batch-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.batch-modal-icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--deep);
+  color: #fff;
+  flex: 0 0 40px;
+}
+
+.batch-modal-icon .ico {
+  width: 22px;
+  height: 22px;
+}
+
+.batch-modal-subtitle {
+  margin-top: 6px;
+  color: #928da8;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.batch-close {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: transparent;
+  color: #8b86a1;
+  font-size: 28px;
+  line-height: 1;
+}
+
+.batch-close:hover {
+  background: #f6f3fb;
+}
+
+.batch-modal-body {
+  display: grid;
+  gap: 20px;
+  padding: 24px;
+}
+
+.batch-select-field {
+  display: grid;
+  gap: 12px;
+  color: var(--deep);
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.batch-select-field select {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid #e5e0ef;
+  border-radius: 10px;
+  background: #fbfaff;
+  color: var(--deep);
+  padding: 0 14px;
+  outline: none;
+  font-size: 14px;
+}
+
+.batch-select-field select:focus {
+  border-color: #cdbdff;
+  box-shadow: 0 0 0 4px rgba(138, 23, 255, 0.08);
+}
+
+.batch-modal-actions {
+  min-height: 76px;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid var(--line);
+}
+
+.batch-cancel,
+.batch-confirm {
+  min-width: 94px;
+  min-height: 42px;
+  border-radius: 12px;
+  font-weight: 900;
+  padding: 0 20px;
+}
+
+.batch-cancel {
+  background: #fff;
+  color: var(--deep);
+  border: 1px solid var(--line);
+}
+
+.batch-confirm {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: linear-gradient(135deg, #8a17ff, #e60076);
+  color: #fff;
+  box-shadow: 0 12px 24px rgba(138, 23, 255, 0.22);
+}
+
+.batch-confirm .ico {
+  width: 16px;
+  height: 16px;
+}
+
 @keyframes fadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -3726,6 +4051,10 @@ button,
     min-height: clamp(390px, calc(100vh - 216px), 460px);
   }
 
+  .story-switcher {
+    min-height: calc(100vh - 216px);
+  }
+
   .story-asset-library {
     padding: 14px;
   }
@@ -3911,7 +4240,7 @@ button,
   }
 
   .story-switcher {
-    min-height: 420px;
+    min-height: calc(100vh - 216px);
   }
 
   .video-box {
@@ -3976,6 +4305,19 @@ button,
 
   .flow-copy {
     display: none;
+  }
+
+  .selection-strip {
+    min-height: 92px;
+    flex-wrap: wrap;
+    align-content: center;
+    gap: 8px 12px;
+    padding: 12px;
+  }
+
+  .selection-actions {
+    width: 100%;
+    justify-content: flex-end;
   }
 
   .role-grid {

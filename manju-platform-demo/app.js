@@ -294,7 +294,18 @@ const state = {
     type: "roles",
     index: 0
   },
+  assetSelection: {
+    open: false,
+    type: "roles",
+    selected: []
+  },
+  assetBatchGenerator: {
+    model: "seedance 2.0fast",
+    viewMode: "主视图"
+  },
   uploadRoleDraft: null,
+  uploadRoleTarget: null,
+  episodeSceneDraft: null,
   rolesGenerated: true,
   modal: null,
   toast: "",
@@ -373,6 +384,7 @@ function appShell(content, opts = {}) {
       </main>
     </div>
     <input id="roleImageUploadInput" class="file-input" type="file" accept="image/*" />
+    <input id="storyAssetUploadInput" class="file-input" type="file" accept="image/*" />
     ${state.modal ? modal() : ""}
     ${state.toast ? `<div class="toast">${state.toast}</div>` : ""}
   `;
@@ -676,7 +688,7 @@ function episodeAssetCta() {
     <div class="episode-fixed-cta" role="region" aria-label="剧本资产拆解">
       <div class="episode-cta-logo">HM</div>
       <div class="episode-cta-copy">剧本已就绪，智能梳理角色各阶段妆造及多视角场景，省去繁琐人工提取。支持手动点击生图或上传自有图片，创作更自由</div>
-      <button class="episode-cta-button" data-action="decompose-assets">剧本资产拆解 <span>✦</span> 45</button>
+      <button class="episode-cta-button" data-action="decompose-assets">剧本资产拆解 <span>✦</span></button>
     </div>
   `;
 }
@@ -708,14 +720,15 @@ function episodeImportedContent(scene) {
           <div class="imported-eyebrow">导入内容</div>
           <div class="scene-meta-highlight">${scene.meta}</div>
         </div>
-        <button class="ghost-btn">${icon("edit")} 编辑场次</button>
       </div>
-      <div class="people-row">
-        <span class="people-label">人物：</span>
-        ${scene.people.map((person) => `<span class="person-chip">${person}</span>`).join("")}
-      </div>
-      <div class="script-lines">
-        ${scene.lines.map(scriptLine).join("")}
+      <div class="episode-imported-body" data-action="edit-episode-scene" data-episode-scene-id="${scene.id}" role="button" tabindex="0" aria-label="编辑${scene.meta}">
+        <div class="people-row">
+          <span class="people-label">人物：</span>
+          ${scene.people.map((person) => `<span class="person-chip">${person}</span>`).join("")}
+        </div>
+        <div class="script-lines">
+          ${scene.lines.map(scriptLine).join("")}
+        </div>
       </div>
     </article>
   `;
@@ -742,6 +755,25 @@ function nextEpisodeDraft() {
     space: "外",
     people: "苏念薇、萧景川",
     content: "△长街尽头雾色未散，车马声由远及近。苏念薇立在石阶前，袖口被风吹起。\n苏念薇（低声）：这一局，该换我来落子了。"
+  };
+}
+
+function lineToSceneText(line) {
+  if (line.type === "dialog") return `${line.name}（${line.mood}）：${line.text}`;
+  return `△${line.text}`;
+}
+
+function sceneToDraft(scene) {
+  const parts = scene.meta.split(/\s+/);
+  return {
+    episode: scene.episode,
+    scene: scene.scene,
+    title: scene.title,
+    time: parts[2] || "日",
+    space: parts[3] || "外",
+    people: scene.people.join("、"),
+    content: scene.lines.map(lineToSceneText).join("\n"),
+    editing: true
   };
 }
 
@@ -794,6 +826,7 @@ function addEpisodeSceneFromModal() {
   }
 
   state.selectedEpisodeScene = id;
+  state.episodeSceneDraft = null;
   state.modal = null;
   toast(existingIndex >= 0 ? "已更新场次内容" : `已添加第${episode}集第${scene}场`);
 }
@@ -831,6 +864,44 @@ function createUploadedRole() {
   toast("已添加上传角色形象");
 }
 
+function assetSelectionIsOpen(type = state.projectTab) {
+  return Boolean(state.assetSelection.open && state.assetSelection.type === type);
+}
+
+function selectedAssetIndexes(type = state.projectTab) {
+  if (!assetSelectionIsOpen(type)) return [];
+  return state.assetSelection.selected
+    .filter((index) => Number.isInteger(index) && index >= 0)
+    .sort((a, b) => a - b);
+}
+
+function assetIsSelected(type, index) {
+  return selectedAssetIndexes(type).includes(index);
+}
+
+function setAssetSelection(type, indexes) {
+  const max = getAssetItems(type).length;
+  state.assetSelection = {
+    open: true,
+    type,
+    selected: [...new Set(indexes.filter((index) => index >= 0 && index < max))]
+  };
+}
+
+function toggleAssetSelection(type, index) {
+  const selected = new Set(selectedAssetIndexes(type));
+  if (selected.has(index)) {
+    selected.delete(index);
+  } else {
+    selected.add(index);
+  }
+  setAssetSelection(type, [...selected]);
+}
+
+function closeAssetSelection() {
+  state.assetSelection = { open: false, type: state.assetSelection.type || "roles", selected: [] };
+}
+
 function assetTabs() {
   return `
     <div class="asset-tabs">
@@ -842,21 +913,14 @@ function assetTabs() {
 }
 
 function assetListView({ title, subtitle, actionText, action, uploadText, uploadAction, items }) {
+  const type = state.projectTab === "props" ? "props" : state.projectTab === "scenes" ? "scenes" : "roles";
+  const selectionOpen = assetSelectionIsOpen(type);
   return `
     ${assetTabs()}
     <div class="project-content">
-      <section class="asset-board">
-        <div class="generation-strip">
-          <div>
-            <div class="card-title" style="margin:0 0 8px">${title}</div>
-            <div class="card-subtitle">${subtitle}</div>
-          </div>
-          <div class="generation-actions">
-            ${uploadText ? `<button class="small-btn light" ${uploadAction ? `data-action="${uploadAction}"` : ""}>${uploadText}</button>` : ""}
-            <button class="small-btn dark" ${action ? `data-action="${action}"` : ""}>${actionText}</button>
-          </div>
-        </div>
-        <div class="role-grid">
+      <section class="asset-board ${selectionOpen ? "selection-mode" : ""}">
+        ${selectionOpen ? assetSelectionToolbar(type, items.length) : assetGenerationStrip({ title, subtitle, actionText, action, uploadText, uploadAction })}
+        <div class="role-grid ${selectionOpen ? "selection-grid" : ""}">
           ${items.map((item, index) => assetCard(item, index)).join("")}
         </div>
         <div class="bottom-flow">
@@ -868,6 +932,40 @@ function assetListView({ title, subtitle, actionText, action, uploadText, upload
           </span>
         </div>
       </section>
+    </div>
+  `;
+}
+
+function assetGenerationStrip({ title, subtitle, actionText, action, uploadText, uploadAction }) {
+  return `
+    <div class="generation-strip">
+      <div>
+        <div class="card-title" style="margin:0 0 8px">${title}</div>
+        <div class="card-subtitle">${subtitle}</div>
+      </div>
+      <div class="generation-actions">
+        ${uploadText ? `<button class="small-btn light" ${uploadAction ? `data-action="${uploadAction}"` : ""}>${uploadText}</button>` : ""}
+        <button class="small-btn dark" ${action ? `data-action="${action}"` : ""}>${actionText}</button>
+      </div>
+    </div>
+  `;
+}
+
+function assetSelectionToolbar(type, total) {
+  const selected = selectedAssetIndexes(type);
+  const allSelected = total > 0 && selected.length === total;
+  const label = assetTypeLabel(type);
+  return `
+    <div class="selection-strip">
+      <button class="select-all-control ${allSelected ? "active" : ""}" data-action="toggle-select-all-assets" data-asset-type="${type}" aria-pressed="${allSelected}">
+        <span class="selection-check" aria-hidden="true">${allSelected ? "✓" : ""}</span>
+        <span class="select-all-label">全选</span>
+      </button>
+      <span class="selection-help">${selected.length ? `已选择 ${selected.length} 个${label}` : `请选择要生成所有形象图的${label}`}</span>
+      <div class="selection-actions">
+        <button class="selection-cancel" data-action="cancel-asset-selection">取消选择</button>
+        <button class="selection-generate" data-action="generate-selected-assets">AI生成 <span>✦ 3</span></button>
+      </div>
     </div>
   `;
 }
@@ -889,8 +987,11 @@ function roleCard(role, index = 0) {
   const sheetY = Math.floor((role.sheetIndex || 0) / 3);
   const generated = Boolean(role.imageUrl || state.rolesGenerated);
   const imageCount = role.imageUrl ? "1/3" : generated ? "3/3" : "0/3";
+  const selectionOpen = assetSelectionIsOpen("roles");
+  const selected = assetIsSelected("roles", index);
   return `
-    <article class="role-card" data-action="open-asset-detail" data-asset-type="roles" data-asset-index="${index}">
+    <article class="role-card ${selectionOpen ? "is-selectable" : ""} ${selected ? "selected" : ""}" data-action="open-asset-detail" data-asset-type="roles" data-asset-index="${index}" aria-selected="${selected}">
+      ${selectionOpen ? `<span class="asset-card-select" aria-hidden="true">${selected ? "✓" : ""}</span>` : ""}
       <button class="role-image-btn" data-action="open-asset-detail" data-asset-type="roles" data-asset-index="${index}" aria-label="查看${role.name}形象图">
         ${role.imageUrl ? `<img class="role-uploaded-img" src="${escapeHtml(role.imageUrl)}" alt="${escapeHtml(role.name)}" />` : generated ? `<span class="role-portrait" style="--sheet-x:${sheetX};--sheet-y:${sheetY}" aria-hidden="true"></span>` : `<span class="role-pending-portrait" aria-hidden="true"><span class="pending-face">☺</span></span>`}
       </button>
@@ -987,8 +1088,11 @@ function assetDetailView() {
       </div>
       <div class="asset-detail-canvas ${type === "roles" ? "is-role" : ""} ${generatorOpen ? "has-generator" : ""}">
         <section class="asset-detail-summary">
-          ${assetSummaryField(asset, type, index, "name", asset.name)}
-          ${assetSummaryField(asset, type, index, "intro", description)}
+          <div class="asset-summary-copy">
+            ${assetSummaryField(asset, type, index, "name", asset.name)}
+            ${assetSummaryField(asset, type, index, "intro", description)}
+          </div>
+          ${type === "roles" ? `<button class="asset-summary-upload" data-action="upload-current-role-image" data-asset-index="${index}">${icon("upload")} 上传</button>` : ""}
         </section>
 
         <section class="asset-hero-card ${type === "roles" ? "is-role" : ""}" data-action="open-asset-generator" data-asset-type="${type}" data-asset-index="${index}">
@@ -1294,13 +1398,11 @@ function storyboardView() {
           ${storyOriginalBlock()}
           <div class="prompt-head">
             <div class="story-current-wrap">
-              <button class="story-back-btn" data-action="back-storyboard-list">← 分集视频</button>
               <div class="card-title" style="margin:0">提示词</div>
               <span class="story-current-inline">第${state.selectedStoryEpisode}集 · 第${state.selectedStoryScene}场</span>
             </div>
             <div class="story-prompt-actions">
               <button class="project-tab" style="color:#8a17ff">创作指南 ↗</button>
-              <button class="story-export-btn">▣ 导出</button>
             </div>
           </div>
           <div class="prompt-empty">描述你的想法，@ 引用角色/资产/场景...</div>
@@ -1337,13 +1439,14 @@ function storyboardView() {
 
 function storyAssetLibrary() {
   return `
-    <aside class="story-asset-library" aria-label="资产库">
+    <aside class="story-asset-library" aria-label="当前场次资产">
       <div class="story-asset-head">
-        <h3>资产库</h3>
-        <button class="asset-add-btn" data-action="story-asset-add" aria-label="添加资产">+</button>
+        <h3>当前场次资产</h3>
+        <button class="story-asset-upload-btn" data-action="story-asset-upload">${icon("upload")} 上传</button>
       </div>
       ${storyAssetSection("角色", "user", roleAssets.slice(0, 4), "role")}
       ${storyAssetSection("场景", "style", sceneAssets.slice(0, 2), "scene")}
+      ${storyAssetSection("道具", "archive", propAssets.slice(0, 2), "prop")}
     </aside>
   `;
 }
@@ -1360,7 +1463,8 @@ function storyAssetSection(title, iconName, items, type) {
 }
 
 function storyAssetMiniCard(item, index, type) {
-  const title = `${item.name}-基础形象-${item.prompt}`;
+  const kindLabel = type === "role" ? "基础形象" : type === "prop" ? "基础道具" : "基础场景";
+  const title = `${item.name}-${kindLabel}-${item.prompt}`;
   let image = "";
   if (type === "role") {
     const x = item.sheetIndex % 3;
@@ -1369,7 +1473,8 @@ function storyAssetMiniCard(item, index, type) {
   } else {
     const x = item.thumbIndex % 3;
     const y = Math.floor(item.thumbIndex / 3);
-    image = `<span class="story-scene-thumb" style="--asset-x:${x};--asset-y:${y}" aria-hidden="true"></span>`;
+    const thumbClass = type === "prop" ? "story-prop-thumb" : "story-scene-thumb";
+    image = `<span class="${thumbClass}" style="--asset-x:${x};--asset-y:${y}" aria-hidden="true"></span>`;
   }
   return `
     <button class="story-asset-card" data-action="story-asset-use" data-asset-name="${item.name}">
@@ -1603,6 +1708,45 @@ function pointsPage() {
 }
 
 function modal() {
+  if (state.modal === "batch-generate") {
+    const type = state.assetSelection.type || "roles";
+    const selectedCount = selectedAssetIndexes(type).length;
+    const viewModes = ["主视图", "特写", "特写+三视图"];
+    return `
+      <div class="modal-backdrop batch-modal-backdrop" data-action="close-modal">
+        <div class="modal batch-generate-modal" data-stop>
+          <div class="batch-modal-head">
+            <div class="batch-title-wrap">
+              <span class="batch-modal-icon">${icon("magic")}</span>
+              <div>
+                <div class="modal-title">选择AI生成模型</div>
+                <div class="batch-modal-subtitle">将为已选择的 ${selectedCount} 个${assetTypeLabel(type)}生成形象图</div>
+              </div>
+            </div>
+            <button class="batch-close" data-action="close-modal" aria-label="关闭">×</button>
+          </div>
+          <div class="batch-modal-body">
+            <label class="batch-select-field">
+              <span>选择模型</span>
+              <select data-batch-generator-model>
+                ${models.map((model) => `<option value="${escapeHtml(model)}" ${state.assetBatchGenerator.model === model ? "selected" : ""}>${model}</option>`).join("")}
+              </select>
+            </label>
+            <label class="batch-select-field">
+              <span>选择视图</span>
+              <select data-batch-generator-view>
+                ${viewModes.map((mode) => `<option value="${escapeHtml(mode)}" ${state.assetBatchGenerator.viewMode === mode ? "selected" : ""}>${mode}</option>`).join("")}
+              </select>
+            </label>
+          </div>
+          <div class="batch-modal-actions">
+            <button class="batch-cancel" data-action="close-modal">取消</button>
+            <button class="batch-confirm" data-action="confirm-batch-generate">${icon("magic")} 确认</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
   if (state.modal === "upload-role") {
     const draft = state.uploadRoleDraft || {};
     const draftName = draft.name || "新角色";
@@ -1667,29 +1811,30 @@ function modal() {
     `;
   }
   if (state.modal === "add-episode") {
-    const draft = nextEpisodeDraft();
+    const draft = state.episodeSceneDraft || nextEpisodeDraft();
+    const isEditing = Boolean(draft.editing);
     return `
       <div class="modal-backdrop" data-action="close-modal">
         <div class="modal episode-modal" data-stop>
           <div class="modal-head">
             <div>
-              <div class="modal-title">添加分集场次</div>
-              <div class="card-subtitle" style="margin-top:6px">自动识别为第 ${draft.episode} 集，第 ${draft.scene} 场，可按需调整。</div>
+              <div class="modal-title">${isEditing ? "编辑分集场次" : "添加分集场次"}</div>
+              <div class="card-subtitle" style="margin-top:6px">${isEditing ? `正在编辑第 ${draft.episode} 集，第 ${draft.scene} 场。` : `自动识别为第 ${draft.episode} 集，第 ${draft.scene} 场，可按需调整。`}</div>
             </div>
             <button class="round" data-action="close-modal">${icon("close")}</button>
           </div>
           <div class="form-grid episode-form-grid">
-            <div class="form-control"><label>第几集</label><input id="episodeNumber" type="number" min="1" value="${draft.episode}" /></div>
-            <div class="form-control"><label>第几场</label><input id="sceneNumber" type="number" min="1" value="${draft.scene}" /></div>
-            <div class="form-control wide"><label>场景名称</label><input id="sceneTitle" value="${draft.title}" /></div>
-            <div class="form-control"><label>时间</label><select id="sceneTime"><option selected>日</option><option>夜</option><option>晨</option><option>黄昏</option></select></div>
-            <div class="form-control"><label>内外</label><select id="sceneSpace"><option>内</option><option selected>外</option></select></div>
-            <div class="form-control wide"><label>人物</label><input id="scenePeople" value="${draft.people}" placeholder="用顿号或逗号分隔，如：苏念薇、萧景川" /></div>
-            <div class="form-control full"><label>这场的内容文本</label><textarea id="sceneContent">${draft.content}</textarea></div>
+            <div class="form-control"><label>第几集</label><input id="episodeNumber" type="number" min="1" value="${escapeHtml(String(draft.episode))}" /></div>
+            <div class="form-control"><label>第几场</label><input id="sceneNumber" type="number" min="1" value="${escapeHtml(String(draft.scene))}" /></div>
+            <div class="form-control wide"><label>场景名称</label><input id="sceneTitle" value="${escapeHtml(draft.title)}" /></div>
+            <div class="form-control"><label>时间</label><select id="sceneTime">${["日", "夜", "晨", "黄昏"].map((time) => `<option ${draft.time === time ? "selected" : ""}>${time}</option>`).join("")}</select></div>
+            <div class="form-control"><label>内外</label><select id="sceneSpace">${["内", "外"].map((space) => `<option ${draft.space === space ? "selected" : ""}>${space}</option>`).join("")}</select></div>
+            <div class="form-control wide"><label>人物</label><input id="scenePeople" value="${escapeHtml(draft.people)}" placeholder="用顿号或逗号分隔，如：苏念薇、萧景川" /></div>
+            <div class="form-control full"><label>这场的内容文本</label><textarea id="sceneContent">${escapeHtml(draft.content)}</textarea></div>
           </div>
           <div class="modal-actions">
             <button class="ghost-btn" data-action="close-modal">取消</button>
-            <button class="small-btn dark" data-action="create-episode-scene">添加场次</button>
+            <button class="small-btn dark" data-action="create-episode-scene">${isEditing ? "保存场次" : "添加场次"}</button>
           </div>
         </div>
       </div>
@@ -1787,13 +1932,18 @@ document.addEventListener("click", (event) => {
   const modalStopEl = event.target.closest("[data-stop]");
   if (state.modal && modalStopEl) {
     if (!actionEl || !modalStopEl.contains(actionEl)) return;
-    const allowedModalActions = ["close-modal", "create-project", "copy-code", "create-episode-scene", "create-upload-role", "preview-upload-role-voice", "use-upload-role-voice"];
+    const allowedModalActions = ["close-modal", "confirm-batch-generate", "create-project", "copy-code", "create-episode-scene", "create-upload-role", "preview-upload-role-voice", "use-upload-role-voice"];
     if (!allowedModalActions.includes(action)) return;
   }
 
   if (action === "open-asset-detail") {
     const type = actionEl.dataset.assetType || "roles";
     const index = Math.max(0, Number(actionEl.dataset.assetIndex) || 0);
+    if (assetSelectionIsOpen(type)) {
+      toggleAssetSelection(type, index);
+      render();
+      return;
+    }
     state.route = "project";
     state.projectTab = "assetDetail";
     state.assetDetail = { type, index };
@@ -1822,6 +1972,7 @@ document.addEventListener("click", (event) => {
     state.modelOpen = false;
     state.styleOpen = false;
     state.ratioOpen = false;
+    closeAssetSelection();
     render();
     return;
   }
@@ -1833,6 +1984,7 @@ document.addEventListener("click", (event) => {
     state.modelOpen = false;
     state.styleOpen = false;
     state.ratioOpen = false;
+    closeAssetSelection();
     render();
     return;
   }
@@ -1900,6 +2052,7 @@ document.addEventListener("click", (event) => {
       render();
       break;
     case "storyboard-add-episode":
+      state.episodeSceneDraft = null;
       toast("已准备新增一集（Demo）");
       break;
     case "storyboard-batch":
@@ -1908,9 +2061,22 @@ document.addEventListener("click", (event) => {
     case "story-asset-add":
       toast("可以从资产库新增角色、场景或道具（Demo）");
       break;
+    case "story-asset-upload":
+      document.getElementById("storyAssetUploadInput")?.click();
+      break;
     case "story-asset-use":
       toast(`已引用资产：${actionEl.dataset.assetName || "资产"}`);
       break;
+    case "edit-episode-scene": {
+      const sceneId = actionEl.dataset.episodeSceneId || state.selectedEpisodeScene;
+      const scene = episodeScenes.find((item) => item.id === sceneId);
+      if (scene) {
+        state.episodeSceneDraft = sceneToDraft(scene);
+        state.modal = "add-episode";
+        render();
+      }
+      break;
+    }
     case "toggle-sidebar": {
       const currentlyMini = document.querySelector(".app")?.classList.contains("sidebar-mini");
       state.sidebarCollapsed = !currentlyMini;
@@ -1952,6 +2118,7 @@ document.addEventListener("click", (event) => {
         if (state.uploadRoleDraft?.imageUrl?.startsWith("blob:")) URL.revokeObjectURL(state.uploadRoleDraft.imageUrl);
         state.uploadRoleDraft = null;
       }
+      if (state.modal === "add-episode") state.episodeSceneDraft = null;
       state.modal = null;
       render();
       break;
@@ -1984,6 +2151,14 @@ document.addEventListener("click", (event) => {
       document.getElementById("scriptUploadInput")?.click();
       break;
     case "upload-role-image":
+      state.uploadRoleTarget = null;
+      document.getElementById("roleImageUploadInput")?.click();
+      break;
+    case "upload-current-role-image":
+      state.uploadRoleTarget = {
+        type: "roles",
+        index: Math.max(0, Number(actionEl.dataset.assetIndex) || 0)
+      };
       document.getElementById("roleImageUploadInput")?.click();
       break;
     case "clear-upload":
@@ -2003,12 +2178,54 @@ document.addEventListener("click", (event) => {
       state.assistantCollapsed = true;
       state.rolesGenerated = false;
       state.assetProfilePicker.open = false;
+      closeAssetSelection();
       toast("剧本资产已拆解，进入资产库");
       break;
     case "batch-generate-roles":
-      state.rolesGenerated = true;
-      toast("主角色图已批量生成");
+      setAssetSelection("roles", []);
+      render();
       break;
+    case "toggle-select-all-assets": {
+      const type = actionEl.dataset.assetType || state.assetSelection.type || "roles";
+      const total = getAssetItems(type).length;
+      const selected = selectedAssetIndexes(type);
+      setAssetSelection(type, selected.length === total ? [] : Array.from({ length: total }, (_, index) => index));
+      render();
+      break;
+    }
+    case "cancel-asset-selection":
+      closeAssetSelection();
+      render();
+      break;
+    case "generate-selected-assets": {
+      const type = state.assetSelection.type || "roles";
+      const selected = selectedAssetIndexes(type);
+      if (!selected.length) {
+        toast("请选择要生成的角色");
+        break;
+      }
+      state.assetBatchGenerator = {
+        model: state.assetBatchGenerator.model || state.selectedModel,
+        viewMode: state.assetBatchGenerator.viewMode || "主视图"
+      };
+      state.modal = "batch-generate";
+      render();
+      break;
+    }
+    case "confirm-batch-generate": {
+      const type = state.assetSelection.type || "roles";
+      const selected = selectedAssetIndexes(type);
+      if (!selected.length) {
+        state.modal = null;
+        toast("请选择要生成的角色");
+        break;
+      }
+      if (type === "roles") state.rolesGenerated = true;
+      closeAssetSelection();
+      state.modal = null;
+      toast(`已用 ${state.assetBatchGenerator.model} 生成 ${selected.length} 个${assetTypeLabel(type)} · ${state.assetBatchGenerator.viewMode}`);
+      break;
+    }
     case "toast-edit":
       toast("项目信息已进入可编辑状态（Demo）");
       break;
@@ -2138,6 +2355,14 @@ document.addEventListener("focusout", (event) => {
 });
 
 document.addEventListener("change", (event) => {
+  if (event.target.matches("[data-batch-generator-model]")) {
+    state.assetBatchGenerator.model = event.target.value;
+    return;
+  }
+  if (event.target.matches("[data-batch-generator-view]")) {
+    state.assetBatchGenerator.viewMode = event.target.value;
+    return;
+  }
   if (event.target.matches("[data-asset-generator-model]")) {
     state.assetGenerator.model = event.target.value;
     return;
@@ -2165,9 +2390,31 @@ document.addEventListener("change", (event) => {
     state.ratioOpen = false;
     render();
   }
+  if (event.target.id === "storyAssetUploadInput") {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    event.target.value = "";
+    toast(`已上传到当前场次资产：${file.name}`);
+  }
   if (event.target.id === "roleImageUploadInput") {
     const file = event.target.files?.[0];
     if (!file) return;
+    const target = state.uploadRoleTarget;
+    if (target?.type === "roles") {
+      const role = roleAssets[target.index];
+      if (role) {
+        if (role.imageUrl?.startsWith("blob:")) URL.revokeObjectURL(role.imageUrl);
+        role.imageUrl = URL.createObjectURL(file);
+        role.uploaded = true;
+        state.rolesGenerated = true;
+        state.uploadRoleTarget = null;
+        event.target.value = "";
+        render();
+        toast(`已上传${role.name}形象图`);
+        return;
+      }
+      state.uploadRoleTarget = null;
+    }
     if (state.uploadRoleDraft?.imageUrl?.startsWith("blob:")) URL.revokeObjectURL(state.uploadRoleDraft.imageUrl);
     const name = file.name.replace(/\.[^.]+$/, "") || "新角色";
     state.uploadRoleDraft = {
@@ -2186,6 +2433,12 @@ document.addEventListener("change", (event) => {
 });
 
 document.addEventListener("keydown", (event) => {
+  const editableSceneEntry = event.target.closest?.("[data-action='edit-episode-scene']");
+  if (editableSceneEntry && (event.key === "Enter" || event.key === " ")) {
+    event.preventDefault();
+    editableSceneEntry.click();
+    return;
+  }
   if (event.target.matches("[data-asset-summary-input]")) {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
