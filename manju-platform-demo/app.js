@@ -24,30 +24,31 @@ const projects = [
 ];
 
 const storyboardEpisodes = [
-  { episode: 1, title: "惊醒凌晨：法医的从天而降儿子", roles: 4, scenes: 2, shots: 9, status: "待生成", action: "编辑", cover: "shot-rain.png", ready: true },
-  { episode: 2, title: "被抹去的三个月", roles: 4, scenes: 2, shots: 12, status: "待生成", action: "编辑", cover: "story-main.png", ready: true },
-  { episode: 3, title: "同居协议", roles: 2, scenes: 1, shots: 0, status: "待生成", action: "生成脚本" },
-  { episode: 4, title: "话痨萌娃神提问", roles: 3, scenes: 1, shots: 0, status: "待生成", action: "生成脚本" },
-  { episode: 5, title: "第一块记忆碎片", roles: 2, scenes: 1, shots: 0, status: "待生成", action: "生成脚本" },
-  { episode: 6, title: "咖啡投毒师姐背叛", roles: 3, scenes: 3, shots: 0, status: "待生成", action: "生成脚本" },
-  { episode: 7, title: "亲子鉴定的错位", roles: 3, scenes: 2, shots: 0, status: "待生成", action: "生成脚本" },
-  { episode: 8, title: "雨夜追踪旧案", roles: 4, scenes: 3, shots: 0, status: "待生成", action: "生成脚本" },
-  { episode: 9, title: "妹妹留下的钥匙", roles: 3, scenes: 2, shots: 0, status: "待生成", action: "生成脚本" },
-  { episode: 10, title: "沉默证人开口", roles: 4, scenes: 3, shots: 0, status: "待生成", action: "生成脚本" },
-  { episode: 11, title: "医院走廊的录音", roles: 3, scenes: 2, shots: 0, status: "待生成", action: "生成脚本" },
-  { episode: 12, title: "旧工作室重启", roles: 4, scenes: 2, shots: 0, status: "待生成", action: "生成脚本" },
-  { episode: 13, title: "父亲藏起的病例", roles: 5, scenes: 3, shots: 0, status: "待生成", action: "生成脚本" },
-  { episode: 14, title: "黑客少年入局", roles: 4, scenes: 2, shots: 0, status: "待生成", action: "生成脚本" },
-  { episode: 15, title: "假遗嘱的破绽", roles: 5, scenes: 3, shots: 0, status: "待生成", action: "生成脚本" },
-  { episode: 16, title: "天台上的交易", roles: 4, scenes: 2, shots: 0, status: "待生成", action: "生成脚本" },
-  { episode: 17, title: "真正的坠楼者", roles: 5, scenes: 4, shots: 0, status: "待生成", action: "生成脚本" },
-  { episode: 18, title: "亲情反噬", roles: 4, scenes: 3, shots: 0, status: "待生成", action: "生成脚本" },
-  { episode: 19, title: "审判前夜", roles: 5, scenes: 3, shots: 0, status: "待生成", action: "生成脚本" },
-  { episode: 20, title: "月光下的真相", roles: 6, scenes: 4, shots: 0, status: "待生成", action: "生成脚本" }
+  { episode: 1, title: "惊醒凌晨：法医的从天而降儿子", roles: 4, scenes: 2, props: 4, shots: 9, status: "待生成", action: "编辑", cover: "shot-rain.png", ready: true },
+  { episode: 2, title: "被抹去的三个月", roles: 4, scenes: 2, props: 4, shots: 12, status: "待生成", action: "编辑", cover: "story-main.png", ready: true },
+  { episode: 3, title: "同居协议", roles: 2, scenes: 1, props: 1, shots: 0, status: "待生成", action: "生成脚本" },
+  { episode: 4, title: "话痨萌娃神提问", roles: 3, scenes: 1, props: 1, shots: 0, status: "待生成", action: "生成脚本" },
+  { episode: 5, title: "第一块记忆碎片", roles: 2, scenes: 1, props: 2, shots: 0, status: "待生成", action: "生成脚本" },
+  { episode: 6, title: "咖啡投毒师姐背叛", roles: 3, scenes: 3, props: 3, shots: 0, status: "待生成", action: "生成脚本" },
+  { episode: 7, title: "亲子鉴定的错位", roles: 3, scenes: 2, props: 2, shots: 0, status: "待生成", action: "生成脚本" },
+  { episode: 8, title: "雨夜追踪旧案", roles: 4, scenes: 3, props: 3, shots: 0, status: "待生成", action: "生成脚本" },
+  { episode: 9, title: "妹妹留下的钥匙", roles: 3, scenes: 2, props: 2, shots: 0, status: "待生成", action: "生成脚本" },
+  { episode: 10, title: "沉默证人开口", roles: 4, scenes: 3, props: 3, shots: 0, status: "待生成", action: "生成脚本" },
+  { episode: 11, title: "医院走廊的录音", roles: 3, scenes: 2, props: 2, shots: 0, status: "待生成", action: "生成脚本" },
+  { episode: 12, title: "旧工作室重启", roles: 4, scenes: 2, props: 2, shots: 0, status: "待生成", action: "生成脚本" },
+  { episode: 13, title: "父亲藏起的病例", roles: 5, scenes: 3, props: 3, shots: 0, status: "待生成", action: "生成脚本" },
+  { episode: 14, title: "黑客少年入局", roles: 4, scenes: 2, props: 2, shots: 0, status: "待生成", action: "生成脚本" },
+  { episode: 15, title: "假遗嘱的破绽", roles: 5, scenes: 3, props: 3, shots: 0, status: "待生成", action: "生成脚本" },
+  { episode: 16, title: "天台上的交易", roles: 4, scenes: 2, props: 2, shots: 0, status: "待生成", action: "生成脚本" },
+  { episode: 17, title: "真正的坠楼者", roles: 5, scenes: 4, props: 4, shots: 0, status: "待生成", action: "生成脚本" },
+  { episode: 18, title: "亲情反噬", roles: 4, scenes: 3, props: 3, shots: 0, status: "待生成", action: "生成脚本" },
+  { episode: 19, title: "审判前夜", roles: 5, scenes: 3, props: 3, shots: 0, status: "待生成", action: "生成脚本" },
+  { episode: 20, title: "月光下的真相", roles: 6, scenes: 4, props: 4, shots: 0, status: "待生成", action: "生成脚本" }
 ];
 
 const models = ["seedance 2.0", "seedance 2.0fast", "happyhorse 1.0"];
 const ratios = ["9:16", "16:9", "3:4", "4:3", "1:1"];
+const storyResolutions = ["720P", "1080P", "2K", "4K"];
 const styles = [
   ["真人都市", "live-city"],
   ["真人悬疑", "live-mystery"],
@@ -59,6 +60,14 @@ const styles = [
   ["厚涂插画", "painted"],
   ["3D厚涂", "thick-3d"],
   ["3D卡通动画", "toon-3d"]
+];
+
+const initialStoryShots = [
+  { id: "shot-1", type: "全景", duration: "3s", title: "第1集：订婚惊变妹妹夺爱", img: "shot-rain.png", active: true },
+  { id: "shot-2", type: "中景", duration: "3s", title: "第1集：订婚惊变妹妹夺爱", img: "shot-umbrella.png" },
+  { id: "shot-3", type: "中景", duration: "3s", title: "第1集：订婚惊变妹妹夺爱", img: "shot-girl.png" },
+  { id: "shot-4", type: "特写", duration: "3s", title: "第1集：订婚惊变妹妹夺爱", img: "shot-boy.png" },
+  { id: "shot-5", type: "中景", duration: "3s", title: "第1集：订婚惊变妹妹夺爱", img: "shot-selfie.png" }
 ];
 
 const roleAssets = [
@@ -274,6 +283,7 @@ const state = {
   storyboardMode: "list",
   selectedStoryEpisode: 1,
   selectedStoryScene: 2,
+  selectedStoryResolution: "720P",
   editingAssetField: null,
   assetGenerator: {
     open: false,
@@ -310,6 +320,7 @@ const state = {
   modal: null,
   toast: "",
   appliedShot: false,
+  storyShots: initialStoryShots.map((shot) => ({ ...shot })),
   uploadedScript: null,
   chatInput: "",
   chats: {
@@ -618,7 +629,7 @@ function projectPage() {
   };
   return appShell(`
     <div class="project-shell-layout ${state.assistantCollapsed ? "assistant-collapsed" : ""}" data-figma-node="363:14524">
-      <section class="project-main">
+      <section class="project-main ${state.projectTab === "storyboard" && state.storyboardMode === "editor" ? "is-storyboard-editor" : ""}">
         ${projectHeader()}
         ${tabs[state.projectTab]()}
       </section>
@@ -1051,14 +1062,18 @@ function assetImageNode(asset, className = "detail-image-fill") {
 }
 
 function assetImageActions(asset, type, index) {
+  const profileAction = type === "roles"
+    ? `<button class="asset-hero-tool" data-action="asset-profile" data-asset-type="${type}" data-asset-index="${index}" title="档案">${icon("archive")}<span>档案</span></button>`
+    : "";
   const secondaryAction = type === "props"
     ? ""
     : type === "scenes"
     ? `<button class="asset-hero-tool" data-action="asset-panorama-preview" data-asset-type="${type}" data-asset-index="${index}" title="全景预览">${icon("style")}<span>全景预览</span></button>`
     : `<button class="asset-hero-tool" data-action="asset-voice" data-asset-type="${type}" data-asset-index="${index}" title="音色">${icon("voice")}<span>音色</span></button>`;
+  const toolCount = (profileAction ? 1 : 0) + (secondaryAction ? 1 : 0) + 3;
   return `
-    <div class="asset-hero-toolbar ${type === "props" ? "is-four" : ""}" aria-label="${asset.name}操作">
-      <button class="asset-hero-tool" data-action="asset-profile" data-asset-type="${type}" data-asset-index="${index}" title="档案">${icon("archive")}<span>档案</span></button>
+    <div class="asset-hero-toolbar is-${toolCount}" aria-label="${asset.name}操作">
+      ${profileAction}
       ${secondaryAction}
       <button class="asset-hero-tool" data-action="asset-history" data-asset-type="${type}" data-asset-index="${index}" title="历史">${icon("history")}<span>历史</span></button>
       <button class="asset-hero-tool" data-action="asset-delete" data-asset-type="${type}" data-asset-index="${index}" title="删除">${icon("trash")}<span>删除</span></button>
@@ -1098,7 +1113,7 @@ function assetDetailView() {
         <section class="asset-hero-card ${type === "roles" ? "is-role" : ""}" data-action="open-asset-generator" data-asset-type="${type}" data-asset-index="${index}">
           <div class="asset-card-title">${asset.name}：基础${label === "角色" ? "形象" : "素材"}</div>
           ${assetImageActions(asset, type, index)}
-          ${isAssetProfilePickerOpen(type, index) ? assetProfilePopover(asset, type, index) : ""}
+          ${type === "roles" && isAssetProfilePickerOpen(type, index) ? assetProfilePopover(asset, type, index) : ""}
           ${isAssetVoicePickerOpen(type, index) ? assetVoicePopover(asset) : ""}
           ${assetImageNode(asset)}
           <div class="asset-card-gradient">
@@ -1216,6 +1231,18 @@ function assetTextGeneratorPanel(asset, type, index) {
   const cost = assetTextPromptCost(prompt);
   const generatorRatios = ["9:16", "16:9", "1:1", "3:4", "4:3"];
   const generatorViewModes = ["主视图", "特写", "特写+三视图"];
+  const generatorViewControl = type === "roles"
+    ? `
+            <label class="asset-generator-view">
+              <span>视图</span>
+              <select data-asset-generator-view data-asset-type="${type}" data-asset-index="${index}">
+                ${generatorViewModes.map((mode) => `<option value="${escapeHtml(mode)}" ${(generator.viewMode || "主视图") === mode ? "selected" : ""}>${mode}</option>`).join("")}
+              </select>
+            </label>`
+    : type === "scenes"
+    ? `
+            <button class="asset-generator-view asset-generator-panorama-shortcut" data-action="asset-generator-panorama" data-asset-type="${type}" data-asset-index="${index}" type="button">720全景</button>`
+    : "";
   const placeholder = asset.prompt
     ? `输入你想生成的新形象描述，例如：${asset.prompt}`
     : "输入你想生成的新画面描述，例如：雨夜长街，红衣人物，电影级柔光";
@@ -1237,12 +1264,7 @@ function assetTextGeneratorPanel(asset, type, index) {
                 ${generatorRatios.map((ratio) => `<option value="${escapeHtml(ratio)}" ${(generator.ratio || "9:16") === ratio ? "selected" : ""}>${ratio}</option>`).join("")}
               </select>
             </label>
-            <label class="asset-generator-view">
-              <span>视图</span>
-              <select data-asset-generator-view data-asset-type="${type}" data-asset-index="${index}">
-                ${generatorViewModes.map((mode) => `<option value="${escapeHtml(mode)}" ${(generator.viewMode || "主视图") === mode ? "selected" : ""}>${mode}</option>`).join("")}
-              </select>
-            </label>
+${generatorViewControl}
           </div>
           <div class="asset-generator-actions">
             <span class="asset-generator-cost" data-asset-generator-cost>预计 <b>✦ ${cost || 3}</b></span>
@@ -1379,7 +1401,7 @@ function storyboardEpisodeCard(item) {
       <div class="storyboard-card-body">
         <span class="storyboard-status">${item.status}</span>
         <h3>第${item.episode}集：${item.title}</h3>
-        <p>角色 ${item.roles} · 场景 ${item.scenes}${item.shots ? ` · 分镜 ${item.shots}` : ""}</p>
+        <p>角色 ${item.roles} · 场景 ${item.scenes} · 道具 ${item.props}${item.shots ? ` · 分镜 ${item.shots}` : ""}</p>
         <button class="storyboard-card-action" data-action="enter-storyboard" data-storyboard-episode="${item.episode}">
           ${item.ready ? "♢" : "⌘"} ${item.action}
         </button>
@@ -1399,7 +1421,6 @@ function storyboardView() {
           <div class="prompt-head">
             <div class="story-current-wrap">
               <div class="card-title" style="margin:0">提示词</div>
-              <span class="story-current-inline">第${state.selectedStoryEpisode}集 · 第${state.selectedStoryScene}场</span>
             </div>
             <div class="story-prompt-actions">
               <button class="project-tab" style="color:#8a17ff">创作指南 ↗</button>
@@ -1408,9 +1429,14 @@ function storyboardView() {
           <div class="prompt-empty">描述你的想法，@ 引用角色/资产/场景...</div>
           <div class="prompt-bottom">
             ${modelSelect("story-left")}
-            <div style="display:flex;align-items:center;gap:10px">
+            <div class="story-prompt-controls">
               <button class="round">@</button>
               <button class="ghost-btn model-trigger" data-action="toggle-model">${state.selectedModel}</button>
+              <label class="story-resolution-select" aria-label="选择分辨率">
+                <select data-story-resolution>
+                  ${storyResolutions.map((resolution) => `<option value="${resolution}" ${state.selectedStoryResolution === resolution ? "selected" : ""}>${resolution}</option>`).join("")}
+                </select>
+              </label>
               <button class="ghost-btn">◷ 15s</button>
               <button class="send" data-action="toggle-model" style="background:var(--deep)">↑</button>
             </div>
@@ -1418,6 +1444,10 @@ function storyboardView() {
         </aside>
       </div>
       <section class="story-workspace">
+        <div class="story-workspace-actions">
+          <button class="story-history-btn" data-action="open-generation-history">◷ 生成历史</button>
+          <button class="story-history-btn" data-action="export-story-video">▣ 导出</button>
+        </div>
         <div class="video-box">
           <img class="video-scene-img" src="${A}story-main.png" alt="视频预览" />
           <div class="video-control"><b>Ⅱ</b><span>00:00 / 05:30</span><div class="progress"></div></div>
@@ -1425,12 +1455,8 @@ function storyboardView() {
       </section>
       <div class="story-shot-strip">
         <div class="shots">
-          ${shotCard("1", "全景", "3s", "第1集：订婚惊变妹妹夺爱", "shot-rain.png", true)}
-          ${shotCard("2", "中景", "3s", "第1集：订婚惊变妹妹夺爱", "shot-umbrella.png")}
-          ${shotCard("2", "中景", "3s", "第1集：订婚惊变妹妹夺爱", "shot-girl.png")}
-          ${shotCard("2", "特写", "3s", "第1集：订婚惊变妹妹夺爱", "shot-boy.png")}
-          ${shotCard("2", "中景", "3s", "第1集：订婚惊变妹妹夺爱", "shot-selfie.png")}
-          ${state.appliedShot ? shotCard("3", "特写", "6s", "手机屏幕显示来电号码", "shot-selfie.png") : ""}
+          ${state.storyShots.map((shot, index) => shotCard(shot, index)).join("")}
+          ${state.appliedShot ? shotCard({ id: "applied-shot", type: "特写", duration: "6s", title: "手机屏幕显示来电号码", img: "shot-selfie.png" }, state.storyShots.length) : ""}
         </div>
       </div>
     </div>
@@ -1498,6 +1524,9 @@ function storyOriginalBlock() {
         <span>原文</span>
       </div>
       <p>${escapeHtml(rawText)}</p>
+      <div class="original-actions">
+        <button class="original-breakdown-btn" data-action="breakdown-storyboard">分镜拆解</button>
+      </div>
     </section>
   `;
 }
@@ -1535,14 +1564,33 @@ function storySwitcher() {
   `;
 }
 
-function shotCard(num, type, duration, title, img, active = false) {
+function shotCard(shot, index) {
+  const num = index + 1;
   return `
-    <article class="shot-card ${active ? "active" : ""}">
-      <div class="shot-meta"><span class="shot-num">${num}</span><span class="muted">${duration}</span></div>
-      <div class="shot-title">${title}</div>
-      <img src="${A}${img}" alt="${title}" />
+    <article class="shot-card ${shot.active ? "active" : ""}" data-shot-index="${index}">
+      <button class="shot-insert-btn left" data-action="insert-story-shot" data-shot-index="${index}" data-shot-side="before" aria-label="在当前分镜前插入分镜">+</button>
+      <button class="shot-insert-btn right" data-action="insert-story-shot" data-shot-index="${index}" data-shot-side="after" aria-label="在当前分镜后插入分镜">+</button>
+      <div class="shot-meta"><span class="shot-num">${num}</span><span class="muted">${shot.duration}</span></div>
+      <div class="shot-title">${escapeHtml(shot.title)}</div>
+      <img src="${A}${shot.img}" alt="${escapeHtml(shot.title)}" />
     </article>
   `;
+}
+
+function insertStoryShot(index, side) {
+  const safeIndex = Math.max(0, Math.min(index, state.storyShots.length - 1));
+  const insertIndex = side === "before" ? safeIndex : safeIndex + 1;
+  const images = ["shot-rain.png", "shot-umbrella.png", "shot-girl.png", "shot-boy.png", "shot-selfie.png"];
+  const shot = {
+    id: `shot-new-${Date.now()}`,
+    type: "补充镜头",
+    duration: "3s",
+    title: "新增分镜：补充转场或情绪细节",
+    img: images[insertIndex % images.length]
+  };
+  state.storyShots.splice(insertIndex, 0, shot);
+  toast("已新增一个分镜");
+  render();
 }
 
 function assistantPanel() {
@@ -2067,6 +2115,18 @@ document.addEventListener("click", (event) => {
     case "story-asset-use":
       toast(`已引用资产：${actionEl.dataset.assetName || "资产"}`);
       break;
+    case "insert-story-shot":
+      insertStoryShot(Number(actionEl.dataset.shotIndex) || 0, actionEl.dataset.shotSide || "after");
+      break;
+    case "open-generation-history":
+      toast("已打开生成历史（Demo）");
+      break;
+    case "export-story-video":
+      toast("已开始导出视频（Demo）");
+      break;
+    case "breakdown-storyboard":
+      toast("已开始分镜拆解（Demo）");
+      break;
     case "edit-episode-scene": {
       const sceneId = actionEl.dataset.episodeSceneId || state.selectedEpisodeScene;
       const scene = episodeScenes.find((item) => item.id === sceneId);
@@ -2233,18 +2293,26 @@ document.addEventListener("click", (event) => {
       toast("已创建场景图生成任务");
       break;
     case "open-asset-generator":
+      const generatorType = actionEl.dataset.assetType || "roles";
+      const currentRoleView = ["主视图", "特写", "特写+三视图"].includes(state.assetGenerator.viewMode)
+        ? state.assetGenerator.viewMode
+        : "主视图";
       state.assetVoicePicker.open = false;
       state.assetProfilePicker.open = false;
       state.assetGenerator = {
         open: true,
-        type: actionEl.dataset.assetType || "roles",
+        type: generatorType,
         index: Math.max(0, Number(actionEl.dataset.assetIndex) || 0),
         prompt: "",
         model: state.assetGenerator.model || state.selectedModel,
         ratio: state.assetGenerator.ratio || "9:16",
-        viewMode: state.assetGenerator.viewMode || "主视图"
+        viewMode: generatorType === "roles" ? currentRoleView : generatorType === "scenes" ? "720全景" : ""
       };
       render();
+      break;
+    case "asset-generator-panorama":
+      state.assetGenerator.viewMode = "720全景";
+      toast("已选择 720全景");
       break;
     case "submit-asset-generator":
       if (!state.assetGenerator.prompt.trim()) {
@@ -2373,6 +2441,10 @@ document.addEventListener("change", (event) => {
   }
   if (event.target.matches("[data-asset-generator-view]")) {
     state.assetGenerator.viewMode = event.target.value;
+    return;
+  }
+  if (event.target.matches("[data-story-resolution]")) {
+    state.selectedStoryResolution = event.target.value;
     return;
   }
   if (event.target.matches("[data-asset-profile-field]")) {
