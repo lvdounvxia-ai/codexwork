@@ -1170,6 +1170,166 @@ h1 {
   display: none !important;
 }
 
+.inline-diff {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  height: 100%;
+}
+
+.inline-diff-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--line-soft);
+  background: #0f1215;
+}
+
+.inline-diff-title {
+  font-weight: 900;
+  font-size: 14px;
+  color: #f4f0e8;
+}
+
+.inline-diff-subtitle {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.inline-diff-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.inline-diff-body {
+  overflow: auto;
+  padding: 10px 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #e6e0d7;
+}
+
+.inline-diff-row {
+  display: grid;
+  grid-template-columns: 46px 18px 1fr;
+  gap: 12px;
+  padding: 4px 14px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.inline-diff-no {
+  color: var(--muted-2);
+  user-select: none;
+  text-align: right;
+}
+
+.inline-diff-prefix {
+  user-select: none;
+  color: var(--muted-2);
+}
+
+.inline-diff-text {
+  min-width: 0;
+}
+
+.inline-diff-edit {
+  width: 100%;
+  min-height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  line-height: inherit;
+  white-space: pre-wrap;
+  outline: none;
+}
+
+.inline-diff-change {
+  position: relative;
+  margin: 6px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+  padding-top: 8px;
+}
+
+.inline-diff-change-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 0 14px 8px;
+}
+
+.inline-diff-change-actions {
+  display: flex;
+  gap: 8px;
+  width: auto;
+}
+
+.inline-diff-action {
+  height: 28px;
+  width: 32px;
+  min-width: 32px;
+  padding: 0;
+  border-radius: 7px;
+  border: 1px solid var(--line);
+  background: #15191d;
+  color: var(--muted);
+  font-weight: 800;
+  font-size: 15px;
+  line-height: 1;
+}
+
+.inline-diff-action.active {
+  border-color: rgba(72, 214, 201, 0.55);
+  color: rgba(72, 214, 201, 0.95);
+}
+
+.inline-diff-action.skip.active {
+  border-color: rgba(239, 107, 107, 0.6);
+  color: rgba(239, 107, 107, 0.95);
+}
+
+.inline-diff-row.add {
+  background: rgba(98, 207, 134, 0.12);
+}
+
+.inline-diff-change .inline-diff-row:first-of-type {
+  margin-top: 6px;
+}
+
+.inline-diff-row.add .inline-diff-prefix {
+  color: var(--ok);
+  font-weight: 900;
+}
+
+.inline-diff-row.add .inline-diff-edit {
+  color: #d8f5df;
+}
+
+.inline-diff-row.del {
+  background: rgba(239, 107, 107, 0.12);
+}
+
+.inline-diff-prefix {
+  min-width: 42px;
+  font-size: 12px;
+  font-weight: 900;
+}
+
+.inline-diff-row.del .inline-diff-prefix {
+  color: var(--danger);
+  font-weight: 900;
+}
+
 @media (max-width: 1200px) {
   .workbench-metrics,
   .editor-body {

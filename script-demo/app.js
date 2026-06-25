@@ -59,6 +59,7 @@ const state = {
   loadingLabel: "",
   showValidationIssues: false,
   validationStatus: "idle",
+  aiFixInline: null,
 };
 
 const DEMO_VALIDATION_ISSUES = ["第 3 行：缺少场次头", "第 22 行：场号不连续"];
@@ -284,6 +285,7 @@ function pasteImportTemplate() {
 function editorTemplate() {
   const scene = currentScene();
   const displayText = scene?.display || scene?.generated || "";
+  const review = state.aiFixInline;
   return shell(`
     <main class="editor-page">
       ${editorRouteTemplate()}
@@ -318,11 +320,17 @@ function editorTemplate() {
           <div class="compare-grid">
             <section class="pane">
               <div class="script-box">
-                <div class="script-editor-wrap">
-                  <pre class="script-line-gutter" data-display-line-nos aria-hidden="true">${editorLineNumbers(displayText)}</pre>
-                  <pre class="script-highlight" data-display-highlight aria-hidden="true">${highlightEditableScript(displayText)}</pre>
-                  <textarea class="script-editor" data-display-editor spellcheck="false">${escapeHtml(displayText)}</textarea>
-                </div>
+                ${
+                  review
+                    ? inlineDiffTemplate(review)
+                    : `
+                  <div class="script-editor-wrap">
+                    <pre class="script-line-gutter" data-display-line-nos aria-hidden="true">${editorLineNumbers(displayText)}</pre>
+                    <pre class="script-highlight" data-display-highlight aria-hidden="true">${highlightEditableScript(displayText)}</pre>
+                    <textarea class="script-editor" data-display-editor spellcheck="false">${escapeHtml(displayText)}</textarea>
+                  </div>
+                `
+                }
               </div>
             </section>
           </div>
@@ -477,9 +485,42 @@ function bindEvents() {
       }
       if (action === "ai-fix-issues") {
         syncDisplayEditor();
+        const scene = currentScene();
+        if (!scene) return;
+        const from = scene.display ?? "";
+        const to = autoFixSceneText(from, scene);
+        state.showValidationIssues = false;
+        const inline = buildInlineDiff(from, to);
+        if (!inline.changes.length) {
+          state.validationStatus = "fixed";
+          state.lastSaved = "已保存 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
+          render();
+          return;
+        }
+        state.aiFixInline = inline;
+        render();
+      }
+      if (action === "inline-accept") {
+        const index = Number(event.currentTarget.dataset.index);
+        resolveInlineChange(index, "accept");
+      }
+      if (action === "inline-reject") {
+        const index = Number(event.currentTarget.dataset.index);
+        resolveInlineChange(index, "reject");
+      }
+      if (action === "inline-cancel") {
+        state.aiFixInline = null;
         state.showValidationIssues = true;
+        render();
+      }
+      if (action === "inline-apply") {
+        const scene = currentScene();
+        if (!state.aiFixInline || !scene) return;
+        scene.display = applyInlineDiff(state.aiFixInline);
         state.validationStatus = "fixed";
         state.lastSaved = "已保存 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
+        state.aiFixInline = null;
+        state.showValidationIssues = true;
         render();
       }
       if (action === "help") alert("Demo 提示：左侧选择集和场，预览区展示结构化后的漫剧脚本，可直接修改并保存。");
@@ -509,6 +550,23 @@ function bindEvents() {
       if (displayLineNos) displayLineNos.scrollTop = displayEditor.scrollTop;
     });
   }
+
+  document.querySelectorAll("[data-inline-after-editor]").forEach((editor) => {
+    const resizeEditor = () => {
+      editor.style.height = "auto";
+      editor.style.height = `${editor.scrollHeight}px`;
+    };
+    resizeEditor();
+    editor.addEventListener("input", () => {
+      if (!state.aiFixInline) return;
+      const index = Number(editor.dataset.index);
+      const changes = state.aiFixInline.changes.slice();
+      if (!changes[index]) return;
+      changes[index] = { ...changes[index], after: editor.value };
+      state.aiFixInline = { ...state.aiFixInline, changes };
+      resizeEditor();
+    });
+  });
 
   const dropZone = document.querySelector("[data-drop-zone]");
   if (dropZone) {
@@ -817,7 +875,7 @@ function buildPromptJson({ episode, sceneNumber, time, location, people, content
 
 function buildReadableScript({ sceneNumber, time, location, people, content }) {
   return [
-    `${sceneNumber} ${displayDayPart(time)} ${displaySceneType(location)} ${normalizeLocation(location)}`,
+    `${sceneNumber} ${displaySceneType(location)} ${normalizeLocation(location)}`,
     `出场人物：${people || "未标注"}`,
     displaySceneContent(content),
   ]
@@ -961,6 +1019,296 @@ function escapeHtml(value) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+function autoFixSceneText(text, scene) {
+  const normalized = String(text || "").replace(/\r\n/g, "\n");
+  const lines = normalized.split("\n");
+  const next = [];
+  const firstLine = lines.find((line) => line.trim()) || "";
+  if (/^\d+-\d+/.test(firstLine.trim())) {
+    next.push(...lines);
+  } else {
+    const fallbackNumber = scene?.generated ? safeParseJson(scene.generated)?.scene_description?.scene_number : "";
+    const sceneNumber = fallbackNumber || `${state.activeEpisode + 1}-${state.activeScene + 1}`;
+    next.push(`${sceneNumber} 内景 场景名称`);
+    next.push(...lines);
+  }
+
+  const headerIndex = next.findIndex((line) => /^\d+-\d+/.test(line.trim()));
+  if (headerIndex >= 0) {
+    const header = next[headerIndex].trim();
+    const match = header.match(/^(\d+-\d+)\s+(.*)$/);
+    if (match) {
+      const sceneNumber = match[1];
+      const rest = match[2];
+      const normalizedRest = rest.replace(/^夜景\s+/, "").replace(/^夜\s+/, "");
+      if (/^内景/.test(normalizedRest)) {
+        next[headerIndex] = `${sceneNumber} 夜景 ${normalizedRest}`;
+      }
+    }
+  }
+
+  const hasPeople = next.some((line) => /^出场人物/.test(line.trim()));
+  if (!hasPeople) {
+    const people = scene?.generated ? safeParseJson(scene.generated)?.persone : "";
+    const insertIndex = next.findIndex((line) => line.trim());
+    const idx = insertIndex >= 0 ? insertIndex + 1 : 1;
+    next.splice(idx, 0, `出场人物：${people || "未标注"}`);
+  }
+  return next.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function safeParseJson(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+function buildInlineDiff(from, to) {
+  const baseLines = String(from || "").split("\n");
+  const suggestedLines = String(to || "").split("\n");
+  const ops = diffLineOps(baseLines, suggestedLines);
+  const groups = [];
+  let aIndex = 0;
+  let current = null;
+
+  function flush() {
+    if (!current) return;
+    if (current.del.length || current.add.length) groups.push(current);
+    current = null;
+  }
+
+  ops.forEach((op) => {
+    if (op.type === "equal") {
+      aIndex += 1;
+      flush();
+      return;
+    }
+    if (!current) current = { start: aIndex, del: [], add: [] };
+    if (op.type === "del") {
+      current.del.push(op.line);
+      aIndex += 1;
+    }
+    if (op.type === "add") {
+      current.add.push(op.line);
+    }
+  });
+  flush();
+
+  const lines = [];
+  const changes = [];
+  let cursor = 0;
+
+  groups.forEach((group) => {
+    const start = Math.max(0, Math.min(baseLines.length, group.start));
+    for (let i = cursor; i < start; i += 1) {
+      lines.push({ type: "equal", line: baseLines[i] });
+    }
+
+    const maxLen = Math.max(group.del.length, group.add.length);
+    for (let i = 0; i < maxLen; i += 1) {
+      const before = group.del[i] ?? null;
+      const after = group.add[i] ?? null;
+      const index = changes.length;
+      changes.push({ before, after, decision: "pending" });
+      lines.push({ type: "change", index });
+    }
+
+    cursor = start + group.del.length;
+  });
+
+  for (let i = cursor; i < baseLines.length; i += 1) {
+    lines.push({ type: "equal", line: baseLines[i] });
+  }
+
+  return { baseText: from, title: "AI 补全建议", lines, changes };
+}
+
+function applyInlineDiff(review) {
+  const out = [];
+  review.lines.forEach((item) => {
+    if (item.type === "equal") {
+      out.push(item.line);
+      return;
+    }
+    const change = review.changes[item.index];
+    if (!change) return;
+    if (change.decision === "accept") {
+      if (change.after !== null) out.push(change.after);
+      return;
+    }
+    if (change.before !== null) out.push(change.before);
+  });
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function inlineDiffTargetText(review) {
+  const out = [];
+  review.lines.forEach((item) => {
+    if (item.type === "equal") {
+      out.push(item.line);
+      return;
+    }
+    const change = review.changes[item.index];
+    if (!change) return;
+    if (change.decision === "reject") {
+      if (change.before !== null) out.push(change.before);
+      return;
+    }
+    if (change.after !== null) out.push(change.after);
+  });
+  return out.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+
+function resolveInlineChange(index, decision) {
+  const scene = currentScene();
+  const review = state.aiFixInline;
+  if (!scene || !review) return;
+  const changes = review.changes.slice();
+  if (!changes[index]) return;
+  changes[index] = { ...changes[index], decision };
+  const resolvedReview = { ...review, changes };
+  const currentText = applyInlineDiff(resolvedReview);
+  const targetText = inlineDiffTargetText(resolvedReview);
+  scene.display = currentText;
+  const nextReview = buildInlineDiff(currentText, targetText);
+  if (!nextReview.changes.length) {
+    state.aiFixInline = null;
+    state.showValidationIssues = false;
+    state.validationStatus = "fixed";
+    state.lastSaved = "已保存 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
+    render();
+    return;
+  }
+  state.aiFixInline = nextReview;
+  state.lastSaved = "已保存 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
+  render();
+  focusNextInlineChange();
+}
+
+function focusNextInlineChange() {
+  requestAnimationFrame(() => {
+    const nextChange = document.querySelector(".inline-diff-change");
+    if (!nextChange) return;
+    nextChange.scrollIntoView({ block: "center", behavior: "smooth" });
+    nextChange.querySelector("[data-inline-after-editor]")?.focus();
+  });
+}
+
+function inlineDiffTemplate(review) {
+  const pending = review.changes.filter((change) => change.decision === "pending").length;
+  const accepted = review.changes.filter((change) => change.decision === "accept").length;
+  const rejected = review.changes.filter((change) => change.decision === "reject").length;
+  return `
+    <div class="inline-diff">
+      <div class="inline-diff-bar">
+        <div>
+          <div class="inline-diff-title">${escapeHtml(review.title || "AI 补全建议")}</div>
+          <div class="inline-diff-subtitle">${pending}条待确认　${accepted}条已应用　${rejected}条已跳过</div>
+        </div>
+        <div class="inline-diff-actions">
+          <button type="button" class="secondary-button" data-action="inline-cancel">取消</button>
+          <button type="button" class="primary-button" data-action="inline-apply">全部应用</button>
+        </div>
+      </div>
+      <div class="inline-diff-body">
+        ${inlineDiffLinesTemplate(review)}
+      </div>
+    </div>
+  `;
+}
+
+function inlineDiffLinesTemplate(review) {
+  let visualLine = 0;
+  return review.lines
+    .map((item) => {
+      if (item.type === "equal") {
+        visualLine += 1;
+        return `
+          <div class="inline-diff-row">
+            <span class="inline-diff-no">${visualLine}</span>
+            <span class="inline-diff-prefix">&nbsp;</span>
+            <span class="inline-diff-text">${escapeHtml(item.line) || "&nbsp;"}</span>
+          </div>
+        `;
+      }
+      const change = review.changes[item.index];
+      const beforeLine = change.before;
+      const afterLine = change.after;
+      const decision = change.decision;
+      const beforeBlock =
+        beforeLine === null
+          ? ""
+          : `
+        <div class="inline-diff-row del">
+          <span class="inline-diff-no">${visualLine + 1}</span>
+          <span class="inline-diff-prefix">原</span>
+          <span class="inline-diff-text">${escapeHtml(beforeLine) || "&nbsp;"}</span>
+        </div>
+      `;
+      const afterBlock =
+        afterLine === null
+          ? ""
+          : `
+        <div class="inline-diff-row add">
+          <span class="inline-diff-no">${visualLine + 1}</span>
+          <span class="inline-diff-prefix">修正后</span>
+          <textarea class="inline-diff-edit" data-inline-after-editor data-index="${item.index}" spellcheck="false">${escapeHtml(afterLine)}</textarea>
+        </div>
+      `;
+      visualLine += 1;
+      return `
+        <div class="inline-diff-change" data-change-index="${item.index}">
+          <div class="inline-diff-change-head">
+            <div class="inline-diff-change-actions">
+              <button type="button" class="inline-diff-action accept ${decision === "accept" ? "active" : ""}" data-action="inline-accept" data-index="${item.index}" aria-label="接受" title="接受">&#10003;</button>
+              <button type="button" class="inline-diff-action skip ${decision === "reject" ? "active" : ""}" data-action="inline-reject" data-index="${item.index}" aria-label="跳过" title="跳过">&#10005;</button>
+            </div>
+          </div>
+          ${beforeBlock}
+          ${afterBlock}
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function diffLineOps(aLines, bLines) {
+  const a = aLines;
+  const b = bLines;
+  const n = a.length;
+  const m = b.length;
+  const dp = Array.from({ length: n + 1 }, () => Array(m + 1).fill(0));
+  for (let i = 1; i <= n; i += 1) {
+    for (let j = 1; j <= m; j += 1) {
+      if (a[i - 1] === b[j - 1]) dp[i][j] = dp[i - 1][j - 1] + 1;
+      else dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  const ops = [];
+  let i = n;
+  let j = m;
+  while (i > 0 || j > 0) {
+    if (i > 0 && j > 0 && a[i - 1] === b[j - 1]) {
+      ops.push({ type: "equal", line: a[i - 1] });
+      i -= 1;
+      j -= 1;
+      continue;
+    }
+    if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
+      ops.push({ type: "add", line: b[j - 1] });
+      j -= 1;
+      continue;
+    }
+    if (i > 0) {
+      ops.push({ type: "del", line: a[i - 1] });
+      i -= 1;
+    }
+  }
+  return ops.reverse();
 }
 
 render();
