@@ -48,12 +48,20 @@ const PROMPT_POLICY = {
 
 const state = {
   view: "upload",
+  uploadMethod: "link",
+  uploadSampleLang: "cn",
   rawText: "",
   fileName: "",
   sourceLabel: "示例文本",
   episodes: [],
   activeEpisode: 0,
   activeScene: 0,
+  sidebarTab: "script",
+  englishSidebar: false,
+  outlineText: "",
+  bioText: "",
+  hookText: "",
+  addDialog: null,
   toast: "",
   lastSaved: "未保存",
   loadingLabel: "",
@@ -62,7 +70,15 @@ const state = {
   aiFixInline: null,
 };
 
-const DEMO_VALIDATION_ISSUES = ["第 3 行：缺少场次头", "第 22 行：场号不连续"];
+const DEMO_VALIDATION_GROUPS = [
+  { key: "location", label: "地点缺失", issues: ["第二集 2-1 地点缺失"] },
+  { key: "body", label: "正文缺失", issues: ["第一集1-3 正文为空"] },
+  { key: "continuity", label: "剧集连续性", issues: [] },
+];
+
+function demoValidationIssueCount() {
+  return DEMO_VALIDATION_GROUPS.reduce((total, group) => total + (group.issues?.length || 0), 0);
+}
 
 const app = document.querySelector("#app");
 let loadingTimer = null;
@@ -123,7 +139,6 @@ function editorTitleTemplate(scene) {
         </div>
       </div>
       <div class="editor-actions">
-        <button type="button" class="link-button" data-action="help">帮助文档</button>
         <select class="small-button" data-action="export">
           <option>导出剧本</option>
           <option>导出 TXT</option>
@@ -165,29 +180,217 @@ function stepsTemplate(active = 1) {
 }
 
 function uploadTemplate() {
+  const method = activeUploadMethod();
+  const sampleLang = activeUploadSampleLang();
   return shell(`
     <main class="upload-page">
       ${routeTemplate()}
       ${stepsTemplate(1)}
       <section class="upload-workspace">
-        <div class="upload-panel">
-          <div class="upload-head">
-            <p class="eyebrow">Novel To Drama Script</p>
-            <h1>导入小说，自动拆集拆场并生成漫剧剧本</h1>
-            <p class="support">三种导入方式都在当前页完成。导入后统一执行“剧本格式校验与补丁规划”Prompt：不改写原文，只补齐格式结构，并输出当前场次 JSON。</p>
+        <div class="upload-shell-card">
+          <div class="upload-shell-head">
+            <div class="upload-shell-title">
+              <span class="upload-shell-mark">✢</span>
+              <span>剧本编辑</span>
+            </div>
+            <div class="upload-shell-actions">
+              <button type="button" class="small-button" data-action="pick-file">导入剧本</button>
+            </div>
           </div>
-
-          <div class="import-body import-board">
-            <div class="import-grid">
-              ${fileImportTemplate()}
-              ${linkImportTemplate()}
-              ${pasteImportTemplate()}
+          <div class="upload-panel">
+            <div class="upload-panel-tabs">
+              <button type="button" class="upload-panel-tab active">剧本编辑</button>
+              <button type="button" class="upload-panel-tab">剧本预览</button>
+              <button type="button" class="upload-panel-tab">剧本设定</button>
+            </div>
+            <div class="upload-panel-body">
+              <aside class="upload-format-sample" aria-label="剧本格式示例">
+                <div class="upload-format-title">剧本格式示例</div>
+                <div class="upload-format-tabs">
+                  <button type="button" class="upload-format-tab ${sampleLang === "cn" ? "active" : ""}" data-action="switch-upload-sample" data-lang="cn">中文示例</button>
+                  <button type="button" class="upload-format-tab ${sampleLang === "en" ? "active" : ""}" data-action="switch-upload-sample" data-lang="en">英文示例</button>
+                </div>
+                <pre class="upload-format-text">${escapeHtml(uploadFormatSampleText(sampleLang))}</pre>
+              </aside>
+              <aside class="upload-methods">
+                ${uploadMethodOptions()
+                  .map(
+                    (item) => `
+                      <button type="button" class="upload-method-option ${method === item.value ? "active" : ""}" data-action="switch-upload-method" data-method="${item.value}">
+                        <span class="upload-method-radio"></span>
+                        <span>${escapeHtml(item.label)}</span>
+                      </button>
+                    `
+                  )
+                  .join("")}
+              </aside>
+              <div class="upload-method-content">
+                ${uploadMethodContentTemplate(method)}
+              </div>
             </div>
           </div>
         </div>
       </section>
     </main>
   `);
+}
+
+function uploadMethodOptions() {
+  return [
+    { value: "upload", label: "本地上传" },
+    { value: "link", label: "导入链接" },
+    { value: "paste", label: "粘贴剧本" },
+  ];
+}
+
+function activeUploadMethod() {
+  return state.uploadMethod || "link";
+}
+
+function activeUploadSampleLang() {
+  return state.uploadSampleLang === "en" ? "en" : "cn";
+}
+
+function uploadFormatGuideText() {
+  return `参考格式 
+集标题    格式为“第 X 集 ”
+场次信息  格式为“场次编号  地点  时间（日/夜景） 内/外景 ”。
+出场人物；格式为“出场人物：角色A、角色B……”。
+场景描写  统一在句首补 ▲。
+内心独白  统一整理为 【角色名 OS：……】。
+画外音 统一整理为 【角色名 OV：……】。
+台词 统一整理为“角色名（神态动作）：台词内容”。`;
+}
+
+function uploadFormatSampleText(lang = "cn") {
+  const guide = uploadFormatGuideText();
+  if (lang === "en") {
+    return `Reference Format
+Episode title Format: "Episode X"
+Scene Info Format: "Scene No.  Location  Time (Day/Night)  Int/Ext"
+Characters Format: "Characters: Character A, Character B……"
+Scene Description: Start each sentence with ▲ uniformly.
+Inner Monologue: Standardized as 【Character OS: ...】
+Voice-over: Standardized as 【Character OV: ...】
+Dialogue: Standardized as "Character (expression & movement): Dialogue content"
+
+English Sample
+Episode 1
+1.1 INT. REEFBACK CLAN, MORVENE'S PALLACE - DAY
+Characters:Nerina、Morvane
+▲A shot of a luxurious and fancy underwater palace.
+▲Nerina (female mermaid, 20) wearing a fancy dress and delicate jewelry, puts down a bowl of food on a banquet table full of fancy dishes. She sits down, anticipating.
+NERINA (V.O.)
+Today marks the 10th year of our marriage.
+Footsteps echo.
+▲MORVANE (male mermaid, 20) approaches from the shadows. His eyes are cold and murderous. Energy coils in his palm,condensing into a blade of light.
+▲Nerina rises, turns toward him, smiling warmly.
+NERINA
+Morvane, you're home.
+▲The blade slams into her chest.
+▲A wet, brutal sound. The moment of penetration. Blood blooms across her gown.`;
+  }
+  return `${guide}
+
+中文示例：
+第一集
+1-1 苏家-堂屋 日景 内景 
+出场人物：苏父、沈家媒婆、苏念禾（15岁）
+▲桌上摆着几锭白花花的银子，光泽诱人。苏父眼睛直勾勾地盯着银子，手还在衣服上贪婪地蹭了蹭。
+▲媒婆一身喜庆打扮，脸上挂着职业假笑，手里摇着帕子。
+沈家媒婆（精明）：苏老爹，咱们明人不说暗话。沈家可是镇上的首富，这二少爷虽说病得重了些，急需个八字相合的姑娘冲喜，但这排场、这银子，那可是别人几辈子都挣不来的。
+▲苏念禾躲在门帘后，透过缝隙看着那一桌银子，眼神麻木。
+苏念禾os：沈家二少爷快病死了，镇上都知道，这时候嫁进去，若是人死了，弄不好是要殉葬的。这不亚于送死。
+苏父（满脸堆笑，手按在银子上）：是是是，沈家大气！
+沈家媒婆：只是有一点，这婚事急，三天内就得过门！您家这三丫头的八字，可是跟二少爷绝配。
+苏父（毫不犹豫，拍大腿）：嫁！只要沈家不嫌弃她是哑巴，别说三天，明天都能嫁！这闺女，我养这么大，也该回报家里了。
+苏念禾os：大姐出嫁了，二姐嘴甜手巧，爹舍不得。
+苏念禾os：而我，是一个哑巴，自出生起就没说过话。用我这个看不顺眼的哑巴换这么多钱，在他心里，值了。"`;
+}
+
+function uploadMethodContentTemplate(method) {
+  if (method === "upload") {
+    return `
+      <div class="upload-mode-panel upload-mode-panel-upload">
+        <div class="upload-mode-box drop-zone" data-drop-zone>
+          <div class="upload-mode-intro">
+            <div class="folder-symbol"></div>
+            <div>
+              <h3>上传剧本文件</h3>
+              <p class="support">支持 TXT、Markdown、DOCX。拖入文件或点击按钮选择本地文件。</p>
+            </div>
+          </div>
+          <div class="upload-mode-footer">
+            <p class="note">支持格式：TXT | DOCX。DOCX 在 demo 中使用同名样例脚本。</p>
+            <div class="upload-actions">
+              <input class="hidden" id="fileInput" type="file" accept=".txt,.md,.doc,.docx" />
+              <button type="button" class="secondary-button" data-action="pick-file">本地上传</button>
+              <button type="button" class="primary-button" data-action="use-sample">使用示例导入</button>
+            </div>
+          </div>
+          ${state.fileName ? `<p class="selected-file">已选择：${escapeHtml(state.fileName)}</p>` : ""}
+        </div>
+      </div>
+    `;
+  }
+  if (method === "link") {
+    return `
+      <div class="upload-mode-panel">
+        <div class="upload-mode-box">
+          <input class="text-input upload-link-input" id="linkInput" placeholder="把在线文档链接粘贴到这里" />
+          <p class="note">支持公开可访问的 TXT 链接，其他文档源可在后端接入解析服务。</p>
+          <div class="upload-mode-actions">
+            <button type="button" class="secondary-button" data-action="import-link">导入链接</button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+  return `
+    <div class="upload-mode-panel">
+      <div class="upload-mode-box">
+        <textarea class="paste-input upload-main-textarea" id="pasteInput" placeholder="${escapeHtml(pasteTextareaInputPlaceholder())}">${escapeHtml(state.rawText)}</textarea>
+        <div class="upload-mode-footer">
+          <p class="note">粘贴内容会被自动识别为第几集，并继续拆成第几场</p>
+          <button type="button" class="secondary-button ${shouldShowPasteImportButton(state.rawText) ? "" : "hidden"}" data-action="import-paste-next" data-paste-import-button>导入文本</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function shouldShowPasteImportButton(text) {
+  return countCharacters(text) >= 20;
+}
+
+function pasteTextareaInputPlaceholder() {
+  return "请输入剧本内容，不超过20万字...";
+}
+
+function pasteTextareaPlaceholder() {
+  return `参考格式 
+集标题    格式为“第 X 集 ”
+场次信息  格式为“场次编号  地点  时间（日/夜景） 内/外景 ”。
+出场人物；格式为“出场人物：角色A、角色B……”。
+场景描写  统一在句首补 ▲。
+内心独白  统一整理为 【角色名 OS：……】。
+画外音 统一整理为 【角色名 OV：……】。
+台词 统一整理为“角色名（神态动作）：台词内容”。
+
+示例：
+第一集
+1-1 苏家-堂屋 日景 内景 
+出场人物：苏父、沈家媒婆、苏念禾（15岁）
+▲桌上摆着几锭白花花的银子，光泽诱人。苏父眼睛直勾勾地盯着银子，手还在衣服上贪婪地蹭了蹭。
+▲媒婆一身喜庆打扮，脸上挂着职业假笑，手里摇着帕子。
+沈家媒婆（精明）：苏老爹，咱们明人不说暗话。沈家可是镇上的首富，这二少爷虽说病得重了些，急需个八字相合的姑娘冲喜，但这排场、这银子，那可是别人几辈子都挣不来的。
+▲苏念禾躲在门帘后，透过缝隙看着那一桌银子，眼神麻木。
+苏念禾os：沈家二少爷快病死了，镇上都知道，这时候嫁进去，若是人死了，弄不好是要殉葬的。这不亚于送死。
+苏父（满脸堆笑，手按在银子上）：是是是，沈家大气！
+沈家媒婆：只是有一点，这婚事急，三天内就得过门！您家这三丫头的八字，可是跟二少爷绝配。
+苏父（毫不犹豫，拍大腿）：嫁！只要沈家不嫌弃她是哑巴，别说三天，明天都能嫁！这闺女，我养这么大，也该回报家里了。
+苏念禾os：大姐出嫁了，二姐嘴甜手巧，爹舍不得。
+苏念禾os：而我，是一个哑巴，自出生起就没说过话。用我这个看不顺眼的哑巴换这么多钱，在他心里，值了。"`;
 }
 
 function loadingTemplate() {
@@ -204,7 +407,6 @@ function loadingTemplate() {
           </div>
           <p class="eyebrow">Script Parsing</p>
           <h1>拆解中</h1>
-          <p class="support">正在识别集数、场次、人物与场景结构，并按格式校验 Prompt 生成修正预览。</p>
           <div class="loading-progress"><span></span></div>
           <p class="note">${escapeHtml(state.loadingLabel || "导入内容")} · 演示流程约 3 秒后自动完成</p>
           <button type="button" class="secondary-button loading-cancel-button" data-action="cancel-loading">取消拆解</button>
@@ -284,16 +486,32 @@ function pasteImportTemplate() {
 
 function editorTemplate() {
   const scene = currentScene();
-  const displayText = scene?.display || scene?.generated || "";
+  const editorState = sceneEditorState(scene);
+  const displayText = editorState.body;
+  const displaySceneNumber = formatSceneMetaSceneNumber(editorState.sceneNumber);
+  const displayLocation = formatSceneMetaLocation(editorState.location);
   const review = state.aiFixInline;
+  const sidebarTab = state.sidebarTab || "script";
+  const showAux = sidebarTab !== "script";
+  const sceneTypeOptions = sceneMetaSceneTypeOptions();
+  const dayPartOptions = sceneMetaDayPartOptions();
   return shell(`
     <main class="editor-page">
       ${editorRouteTemplate()}
       ${editorTitleTemplate(scene)}
       <section class="editor-shell">
         <div class="workbench-tabs">
-          <button type="button" class="tab-button active">剧本编辑</button>
-          <button type="button" class="tab-button">剧本预览</button>
+          <div class="workbench-tabs-left">
+            <button type="button" class="tab-button active">剧本编辑</button>
+            <button type="button" class="tab-button">剧本预览</button>
+          </div>
+          <div class="workbench-actions">
+            <button type="button" class="small-button workbench-language" data-action="toggle-english-sidebar">
+              <span>${state.englishSidebar ? "切换中文" : "切换英文"}</span>
+              <span class="workbench-note">仅做展示非功能</span>
+            </button>
+            <button type="button" class="small-button workbench-add" data-action="workbench-add">添加</button>
+          </div>
         </div>
         <div class="workbench-metrics">
           <div class="workbench-source">剧集 ｜ ${state.episodes.length} 集</div>
@@ -311,6 +529,11 @@ function editorTemplate() {
         </div>
         <div class="editor-body">
           <aside class="sidebar">
+          <div class="sidebar-catalog">
+            <button type="button" class="sidebar-catalog-item ${sidebarTab === "outline" ? "active" : ""}" data-action="sidebar-tab" data-tab="outline">${escapeHtml(sidebarTabLabel("outline"))}</button>
+            <button type="button" class="sidebar-catalog-item ${sidebarTab === "bio" ? "active" : ""}" data-action="sidebar-tab" data-tab="bio">${escapeHtml(sidebarTabLabel("bio"))}</button>
+            <button type="button" class="sidebar-catalog-item ${sidebarTab === "hook" ? "active" : ""}" data-action="sidebar-tab" data-tab="hook">${escapeHtml(sidebarTabLabel("hook"))}</button>
+          </div>
           <div class="episode-list">
             ${state.episodes.map(episodeTemplate).join("")}
           </div>
@@ -321,13 +544,49 @@ function editorTemplate() {
             <section class="pane">
               <div class="script-box">
                 ${
-                  review
+                  showAux
+                    ? auxPanelTemplate(sidebarTab)
+                    : review
                     ? inlineDiffTemplate(review)
                     : `
-                  <div class="script-editor-wrap">
-                    <pre class="script-line-gutter" data-display-line-nos aria-hidden="true">${editorLineNumbers(displayText)}</pre>
-                    <pre class="script-highlight" data-display-highlight aria-hidden="true">${highlightEditableScript(displayText)}</pre>
-                    <textarea class="script-editor" data-display-editor spellcheck="false">${escapeHtml(displayText)}</textarea>
+                  <div class="script-editor-panel">
+                    <div class="scene-meta-grid">
+                      <label class="scene-meta-field">
+                        <span class="scene-meta-label">${escapeHtml(sceneMetaFieldLabel("sceneNumber"))}</span>
+                        <input class="scene-meta-input" data-scene-meta="sceneNumber" type="text" value="${escapeHtml(displaySceneNumber)}" spellcheck="false" readonly />
+                      </label>
+                      <label class="scene-meta-field">
+                        <span class="scene-meta-label">${escapeHtml(sceneMetaFieldLabel("location"))}</span>
+                        <input class="scene-meta-input" data-scene-meta="location" data-raw-value="${escapeHtml(editorState.location)}" type="text" value="${escapeHtml(displayLocation)}" spellcheck="false" />
+                      </label>
+                      <label class="scene-meta-field">
+                        <span class="scene-meta-label">${escapeHtml(sceneMetaFieldLabel("sceneType"))}</span>
+                        <select class="scene-meta-input" data-scene-meta="sceneType">
+                          ${sceneTypeOptions
+                            .map(
+                              (option) =>
+                                `<option value="${escapeHtml(option.value)}" ${editorState.sceneType === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`
+                            )
+                            .join("")}
+                        </select>
+                      </label>
+                      <label class="scene-meta-field">
+                        <span class="scene-meta-label">${escapeHtml(sceneMetaFieldLabel("dayPart"))}</span>
+                        <select class="scene-meta-input" data-scene-meta="dayPart">
+                          ${dayPartOptions
+                            .map(
+                              (option) =>
+                                `<option value="${escapeHtml(option.value)}" ${editorState.dayPart === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`
+                            )
+                            .join("")}
+                        </select>
+                      </label>
+                    </div>
+                    <div class="script-editor-wrap">
+                      <pre class="script-line-gutter" data-display-line-nos aria-hidden="true">${editorLineNumbers(displayText)}</pre>
+                      <pre class="script-highlight" data-display-highlight aria-hidden="true">${highlightEditableScript(displayText)}</pre>
+                      <textarea class="script-editor" data-display-editor spellcheck="false" placeholder="${escapeHtml(scriptEditorPlaceholder())}">${escapeHtml(displayText)}</textarea>
+                    </div>
                   </div>
                 `
                 }
@@ -337,27 +596,204 @@ function editorTemplate() {
           </section>
         </div>
         ${state.showValidationIssues ? issuePopoverTemplate() : ""}
+        ${state.addDialog ? addDialogTemplate(state.addDialog) : ""}
       </section>
     </main>
   `, "editor");
 }
 
+function addDialogTemplate(dialog) {
+  const type = dialog?.type || "episode";
+  const content = dialog?.content || "";
+  const episodeCount = Math.max(1, Number(dialog?.episodeCount || 1));
+  const sceneCount = Math.max(1, Number(dialog?.sceneCount || 1));
+  const sceneSpec = `${episodeCount}-${sceneCount}`;
+  const duplicateScene = type === "episode" ? findSceneDuplicateInfo(episodeCount, sceneCount) : null;
+  const contentError = dialog?.contentError || "";
+  const contentPlaceholder =
+    type === "outline"
+      ? "请输入正文内容，剧本大纲可为空"
+      : type === "episode"
+        ? "请输入正文内容，剧集内容不可为空"
+        : "请输入正文内容";
+  return `
+    <div class="modal-overlay" role="dialog" aria-modal="true">
+      <div class="modal-dialog">
+        <div class="modal-head">
+          <div class="modal-title">添加</div>
+        </div>
+        <div class="modal-body">
+          ${
+            type === "episode"
+              ? `
+          <label class="modal-label">添加集数</label>
+          <input class="modal-input" data-add-episode-count type="number" min="1" step="1" value="${episodeCount}" />
+          <label class="modal-label">添加场次数</label>
+          <div class="modal-stepper">
+            <input class="modal-input modal-input-stepper" data-add-scene-count type="text" inputmode="numeric" value="${escapeHtml(sceneSpec)}" />
+            <div class="modal-stepper-buttons">
+              <button type="button" class="modal-stepper-button" data-action="scene-count-up" aria-label="增加场次数">▲</button>
+              <button type="button" class="modal-stepper-button" data-action="scene-count-down" aria-label="减少场次数">▼</button>
+            </div>
+          </div>
+          ${duplicateScene ? `<div class="modal-toast toast" role="status">已有第${escapeHtml(toChineseNumber(duplicateScene.episodeNo))}集第${escapeHtml(toChineseNumber(duplicateScene.sceneNo))}场，不可重复添加剧集</div>` : ""}
+          `
+              : ""
+          }
+          <label class="modal-label">添加正文</label>
+          <textarea class="modal-textarea" data-add-content spellcheck="false" placeholder="${escapeHtml(contentPlaceholder)}">${escapeHtml(content)}</textarea>
+          ${contentError ? `<div class="modal-toast toast" role="status">${escapeHtml(contentError)}</div>` : ""}
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="secondary-button" data-action="add-cancel">取消</button>
+          <button type="button" class="primary-button" data-action="add-confirm">确定</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function auxPanelTemplate(tab) {
+  const meta = tabMeta(tab);
+  const value = tabItems(tab);
+  const placeholder =
+    tab === "outline"
+      ? "请输入正文内容，剧本大纲可为空"
+      : tab === "bio"
+        ? "请输入正文内容，人物小传可为空"
+        : tab === "hook"
+          ? "请输入正文内容，前置钩子可为空"
+        : "请输入正文内容";
+  return `
+    <div class="aux-panel" data-aux-tab="${escapeHtml(tab)}">
+      <textarea class="aux-main-editor" data-aux-main-editor data-tab="${escapeHtml(tab)}" placeholder="${escapeHtml(placeholder)}" spellcheck="false">${escapeHtml(value || "")}</textarea>
+    </div>
+  `;
+}
+
+function tabMeta(tab) {
+  if (tab === "outline") return { title: "剧本大纲", subtitle: "以要点形式整理剧情脉络与节奏" };
+  if (tab === "bio") return { title: "人物小传", subtitle: "补充人物背景、关系与动机" };
+  return { title: "前置钩子", subtitle: "放在开头的画面/冲突钩子" };
+}
+
+function sidebarTabLabel(tab) {
+  if (!state.englishSidebar) {
+    if (tab === "outline") return "剧本大纲";
+    if (tab === "bio") return "人物小传";
+    return "前置钩子";
+  }
+  if (tab === "outline") return "Outline";
+  if (tab === "bio") return "Character Bio";
+  return "Cold Open";
+}
+
+function sceneMetaFieldLabel(field) {
+  if (!state.englishSidebar) {
+    if (field === "sceneNumber") return "场次号";
+    if (field === "location") return "地点";
+    if (field === "sceneType") return "内/外景";
+    return "日/夜景";
+  }
+  if (field === "sceneNumber") return "Scene No.";
+  if (field === "location") return "Location";
+  if (field === "sceneType") return "INT/EXT";
+  return "Day/Night";
+}
+
+function sceneMetaSceneTypeOptions() {
+  return [
+    { value: "内景", label: state.englishSidebar ? "INT" : "内景" },
+    { value: "外景", label: state.englishSidebar ? "EXT" : "外景" },
+  ];
+}
+
+function sceneMetaDayPartOptions() {
+  return [
+    { value: "", label: state.englishSidebar ? "Unset" : "未填" },
+    { value: "日景", label: state.englishSidebar ? "Day" : "日景" },
+    { value: "夜景", label: state.englishSidebar ? "Night" : "夜景" },
+  ];
+}
+
+function scriptEditorPlaceholder() {
+  return state.englishSidebar ? "Enter body text; episode content cannot be empty" : "请输入正文，剧集正文不可为空";
+}
+
+function formatSceneMetaSceneNumber(sceneNumber) {
+  return state.englishSidebar ? String(sceneNumber || "").replace(/-/g, ".") : String(sceneNumber || "");
+}
+
+function formatSceneMetaLocation(location) {
+  if (!state.englishSidebar) return String(location || "");
+  const translated = translateLocationLabel(String(location || ""));
+  return translated ? translated.toUpperCase() : "";
+}
+
+function tabItems(tab) {
+  if (tab === "outline") return state.outlineText;
+  if (tab === "bio") return state.bioText;
+  return state.hookText;
+}
+
+function setTabItems(tab, items) {
+  if (tab === "outline") state.outlineText = items;
+  else if (tab === "bio") state.bioText = items;
+  else state.hookText = items;
+}
+
+function sceneButtonLabel(scene, episodeIndex, sceneIndex) {
+  if (state.englishSidebar) return englishSceneButtonLabel(scene, episodeIndex, sceneIndex);
+  const fallbackNumber = `${episodeIndex + 1}-${sceneIndex + 1}`;
+  const parsed = scene?.generated ? safeParseJson(scene.generated) : null;
+  const sceneNumber = parsed?.scene_description?.scene_number || fallbackNumber;
+  const location = parsed?.scene_description?.location || "场景名称";
+  const time = parsed?.scene_description?.time_of_day || "";
+  let locationLabel = normalizeSidebarLocationLabel(location);
+  if (!locationLabel || locationLabel === "场景名称" || locationLabel === "内景" || locationLabel === "外景") locationLabel = "空地点";
+  const timeLabel = normalizeTimeOfDay(time);
+  const typeLabel = displaySceneType(location);
+  return `${sceneNumber} ${locationLabel} ${timeLabel} ${typeLabel}`;
+}
+
+function normalizeSidebarLocationLabel(location) {
+  return normalizeLocation(location)
+    .replace(/^(内景|外景)\s*/g, "")
+    .replace(/\s+(内景|外景)\s*/g, " ")
+    .trim();
+}
+
+function truncateSidebarLabel(label, maxChars = 10) {
+  const chars = Array.from(String(label || ""));
+  if (chars.length <= maxChars) return String(label || "");
+  return `${chars.slice(0, maxChars).join("")}...`;
+}
+
 function episodeTemplate(episode, episodeIndex) {
   const isEpisodeActive = state.activeEpisode === episodeIndex;
+  const title = state.englishSidebar ? englishEpisodeTitle(episode, episodeIndex) : episode.title;
+  const countLabel = state.englishSidebar ? `${episode.scenes.length} Scenes` : `${episode.scenes.length} 场`;
+  const deleteEpisodeLabel = state.englishSidebar ? "Delete" : "删除";
+  const deleteSceneLabel = state.englishSidebar ? "Delete" : "删除";
   return `
     <div class="episode-block">
-      <button type="button" class="episode-title ${isEpisodeActive ? "active" : ""}" data-episode="${episodeIndex}">
-        <span>${escapeHtml(episode.title)}</span>
-        <span class="episode-count">${episode.scenes.length} 场</span>
-      </button>
+      <div class="episode-title-row ${isEpisodeActive ? "active" : ""}">
+        <button type="button" class="episode-title ${isEpisodeActive ? "active" : ""}" data-episode="${episodeIndex}">
+          <span>${escapeHtml(title)}</span>
+          <span class="episode-count">${escapeHtml(countLabel)}</span>
+        </button>
+        <button type="button" class="sidebar-delete-button" data-action="delete-episode" data-episode-index="${episodeIndex}" aria-label="${escapeHtml(deleteEpisodeLabel)}" title="${escapeHtml(deleteEpisodeLabel)}">${escapeHtml(deleteEpisodeLabel)}</button>
+      </div>
       <div class="scene-list">
         ${episode.scenes
           .map(
             (scene, sceneIndex) => `
-              <button type="button" class="scene-item ${isEpisodeActive && state.activeScene === sceneIndex ? "active" : ""}" data-scene="${episodeIndex}:${sceneIndex}">
-                <span>${escapeHtml(scene.title)}</span>
-                <span class="scene-time">${scene.minutes}分</span>
-              </button>
+              <div class="scene-item-row ${isEpisodeActive && state.activeScene === sceneIndex ? "active" : ""}" data-scene-row="${episodeIndex}:${sceneIndex}">
+                <button type="button" class="scene-item ${isEpisodeActive && state.activeScene === sceneIndex ? "active" : ""}" data-scene="${episodeIndex}:${sceneIndex}">
+                  <span>${escapeHtml(truncateSidebarLabel(sceneButtonLabel(scene, episodeIndex, sceneIndex)))}</span>
+                </button>
+                <button type="button" class="sidebar-delete-button" data-action="delete-scene" data-episode-index="${episodeIndex}" data-scene-index="${sceneIndex}" aria-label="${escapeHtml(deleteSceneLabel)}" title="${escapeHtml(deleteSceneLabel)}">${escapeHtml(deleteSceneLabel)}</button>
+              </div>
             `
           )
           .join("")}
@@ -382,24 +818,45 @@ function issuePopoverTemplate() {
     <aside class="issue-popover">
       <div class="issue-head">
         <span class="issue-warning">△</span>
-        <h3>${DEMO_VALIDATION_ISSUES.length} 处格式问题</h3>
+        <h3>${demoValidationIssueCount()} 处格式问题</h3>
         <span class="issue-chevron">⌄</span>
       </div>
       <p class="issue-tip">修改错误后行号定位可能会有误差</p>
       <div class="issue-list">
-        ${DEMO_VALIDATION_ISSUES
-          .map(
-            (issue) => `
-              <div class="issue">
-                <span class="issue-checkbox"></span>
-                <span>${escapeHtml(issue)}</span>
-              </div>
-            `
-          )
-          .join("")}
+        ${DEMO_VALIDATION_GROUPS.map((group) => issueGroupTemplate(group)).join("")}
       </div>
-      <button type="button" class="ai-fix-button" data-action="ai-fix-issues">AI自动补全</button>
     </aside>
+  `;
+}
+
+function issueGroupTemplate(group) {
+  const issues = group?.issues || [];
+  const headAction =
+    group?.key === "location"
+      ? `<button type="button" class="ai-fix-button" data-action="ai-fix-issues">AI自动补全</button>`
+      : "";
+  const body = issues.length
+    ? issues
+        .map(
+          (issue) => `
+            <div class="issue">
+              <span class="issue-checkbox"></span>
+              <span>${escapeHtml(issue)}</span>
+            </div>
+          `
+        )
+        .join("")
+    : `<div class="issue-empty">暂无问题</div>`;
+  return `
+    <section class="issue-group" data-issue-group="${escapeHtml(group?.key || "")}">
+      <div class="issue-group-head">
+        <div class="issue-group-title">${escapeHtml(group?.label || "")}</div>
+        ${headAction}
+      </div>
+      <div class="issue-group-body">
+        ${body}
+      </div>
+    </section>
   `;
 }
 
@@ -420,7 +877,7 @@ function scriptLines(text) {
 }
 
 function highlightEditableScript(text) {
-  if (!text.trim()) return `<span class="editor-muted">暂无内容</span>`;
+  if (!text.trim()) return "";
   return text
     .split("\n")
     .map((line) => {
@@ -435,6 +892,133 @@ function highlightEditableScript(text) {
 function editorLineNumbers(text) {
   const lineCount = Math.max(1, text.split("\n").length);
   return Array.from({ length: lineCount }, (_, index) => index + 1).join("\n");
+}
+
+function sceneEditorState(scene) {
+  const fallback = defaultSceneMeta(scene);
+  const parsed = parseSceneHeader(scene?.display ?? "");
+  const lines = String(scene?.display ?? "")
+    .replace(/\r\n/g, "\n")
+    .split("\n");
+  const body =
+    parsed.headerIndex >= 0
+      ? lines.filter((_, index) => index !== parsed.headerIndex).join("\n").replace(/^\n+/, "")
+      : String(scene?.display ?? "");
+  return {
+    sceneNumber: parsed.sceneNumber || fallback.sceneNumber,
+    location: parsed.location || fallback.location,
+    sceneType: parsed.sceneType || fallback.sceneType,
+    dayPart: parsed.dayPart || "",
+    body,
+  };
+}
+
+function defaultSceneMeta(scene) {
+  const parsed = scene?.generated ? safeParseJson(scene.generated) : null;
+  const sceneNumber = parsed?.scene_description?.scene_number || `${state.activeEpisode + 1}-${state.activeScene + 1}`;
+  const location = parsed?.scene_description?.location || "场景名称";
+  return {
+    sceneNumber,
+    location: normalizeSceneMetaLocation(location),
+    sceneType: displaySceneType(location),
+  };
+}
+
+function normalizeSceneMetaLocation(location) {
+  const normalized = normalizeLocation(location);
+  if (!normalized || normalized === "场景名称") return "";
+  if (normalized === "内景" || normalized === "外景") return "";
+  return normalized;
+}
+
+function parseSceneHeader(text) {
+  const lines = String(text || "").replace(/\r\n/g, "\n").split("\n");
+  const headerIndex = lines.findIndex((line) => /^\s*\d+-\d+/.test(line));
+  if (headerIndex < 0) {
+    return { headerIndex: -1, sceneNumber: "", location: "", sceneType: "", dayPart: "" };
+  }
+  const header = lines[headerIndex].trim();
+  const match = header.match(/^(\d+-\d+)\s*(.*)$/);
+  if (!match) {
+    return { headerIndex, sceneNumber: "", location: "", sceneType: "", dayPart: "" };
+  }
+  const sceneNumber = match[1];
+  const tokens = match[2]
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  let sceneType = "";
+  let dayPart = "";
+  const locationTokens = [];
+  tokens.forEach((token) => {
+    if (!sceneType && /^(内景|外景)$/.test(token)) {
+      sceneType = token;
+      return;
+    }
+    if (!dayPart && /^(日景|夜景|日|夜)$/.test(token)) {
+      dayPart = token === "日" ? "日景" : token === "夜" ? "夜景" : token;
+      return;
+    }
+    locationTokens.push(token);
+  });
+  return {
+    headerIndex,
+    sceneNumber,
+    location: locationTokens.join(" ").trim(),
+    sceneType,
+    dayPart,
+  };
+}
+
+function buildSceneHeaderLine(meta) {
+  const sceneNumber = String(meta?.sceneNumber || `${state.activeEpisode + 1}-${state.activeScene + 1}`).trim() || `${state.activeEpisode + 1}-${state.activeScene + 1}`;
+  const dayPart = String(meta?.dayPart || "").trim();
+  const sceneType = String(meta?.sceneType || "内景").trim() || "内景";
+  const location = String(meta?.location || "").trim();
+  return [sceneNumber, dayPart, sceneType, location].filter(Boolean).join(" ");
+}
+
+function sceneMetaFromDom(scene) {
+  const editorState = sceneEditorState(scene);
+  const sceneNumberInput = document.querySelector('[data-scene-meta="sceneNumber"]');
+  const locationInput = document.querySelector('[data-scene-meta="location"]');
+  const sceneTypeInput = document.querySelector('[data-scene-meta="sceneType"]');
+  const dayPartInput = document.querySelector('[data-scene-meta="dayPart"]');
+  const rawLocation = locationInput?.dataset.rawValue || editorState.location;
+  const displayedRawLocation = formatSceneMetaLocation(rawLocation);
+  const nextLocationValue = locationInput?.value.trim() || "";
+  return {
+    sceneNumber: normalizeSceneMetaSceneNumber(sceneNumberInput?.value.trim() || editorState.sceneNumber),
+    location: state.englishSidebar && nextLocationValue === displayedRawLocation ? rawLocation : nextLocationValue || editorState.location,
+    sceneType: sceneTypeInput?.value || editorState.sceneType,
+    dayPart: dayPartInput?.value || "",
+  };
+}
+
+function normalizeSceneMetaSceneNumber(value) {
+  return String(value || "").replace(/\./g, "-");
+}
+
+function updateSceneGeneratedMeta(scene, meta, bodyText = "") {
+  if (!scene?.generated) return;
+  const parsed = safeParseJson(scene.generated);
+  if (!parsed) return;
+  parsed.scene_description = parsed.scene_description || {};
+  parsed.scene_description.scene_number = meta.sceneNumber;
+  parsed.scene_description.location = `${meta.sceneType} ${meta.location}`.trim();
+  parsed.scene_description.time_of_day = meta.dayPart || "";
+  scene.generated = JSON.stringify(parsed, null, 2);
+  scene.minutes = Math.max(1, Math.ceil(countCharacters(bodyText) / 260));
+}
+
+function syncSceneEditorState() {
+  const scene = currentScene();
+  const displayEditor = document.querySelector("[data-display-editor]");
+  if (!displayEditor || !scene) return;
+  const bodyText = displayEditor.value;
+  const meta = sceneMetaFromDom(scene);
+  scene.display = [buildSceneHeaderLine(meta), bodyText].filter((part, index) => index === 0 || part !== "").join("\n").replace(/\n{3,}/g, "\n\n").trimEnd();
+  updateSceneGeneratedMeta(scene, meta, bodyText);
 }
 
 function classifyLine(line) {
@@ -453,6 +1037,27 @@ function bindEvents() {
       if (action === "pick-file") document.querySelector("#fileInput")?.click();
       if (action === "use-sample") importText(SAMPLE_NOVEL, "示例文本");
       if (action === "import-paste-next") {
+        const value = document.querySelector("#pasteInput")?.value || "";
+        importText(value || SAMPLE_NOVEL, value ? "粘贴文本" : "示例文本");
+      }
+      if (action === "switch-upload-method") {
+        state.uploadMethod = event.currentTarget.dataset.method || "link";
+        render();
+      }
+      if (action === "switch-upload-sample") {
+        state.uploadSampleLang = event.currentTarget.dataset.lang === "en" ? "en" : "cn";
+        render();
+      }
+      if (action === "import-current-method") {
+        const method = activeUploadMethod();
+        if (method === "upload") {
+          document.querySelector("#fileInput")?.click();
+          return;
+        }
+        if (method === "link") {
+          importFromLink();
+          return;
+        }
         const value = document.querySelector("#pasteInput")?.value || "";
         importText(value || SAMPLE_NOVEL, value ? "粘贴文本" : "示例文本");
       }
@@ -524,6 +1129,89 @@ function bindEvents() {
         render();
       }
       if (action === "help") alert("Demo 提示：左侧选择集和场，预览区展示结构化后的漫剧脚本，可直接修改并保存。");
+      if (action === "toggle-english-sidebar") {
+        state.englishSidebar = !state.englishSidebar;
+        render();
+      }
+      if (action === "scene-count-up") {
+        if (!state.addDialog) return;
+        state.addDialog = {
+          ...state.addDialog,
+          contentError: "",
+          sceneCount: Math.max(1, Number(state.addDialog.sceneCount || 1)) + 1,
+        };
+        render();
+        focusSceneSpecInput();
+      }
+      if (action === "scene-count-down") {
+        if (!state.addDialog) return;
+        state.addDialog = {
+          ...state.addDialog,
+          contentError: "",
+          sceneCount: Math.max(1, Math.max(1, Number(state.addDialog.sceneCount || 1)) - 1),
+        };
+        render();
+        focusSceneSpecInput();
+      }
+      if (action === "sidebar-tab") {
+        const tab = event.currentTarget.dataset.tab || "outline";
+        state.sidebarTab = tab;
+        state.aiFixInline = null;
+        render();
+        focusAuxEditor();
+      }
+      if (action === "workbench-add") {
+        state.addDialog = { type: currentAddDialogType(), content: "", contentError: "", episodeCount: nextAvailableEpisodeNumber(), sceneCount: 1 };
+        render();
+        focusAddDialog();
+      }
+      if (action === "delete-episode") {
+        const episodeIndex = Number(event.currentTarget.dataset.episodeIndex);
+        deleteEpisodeAt(episodeIndex);
+      }
+      if (action === "delete-scene") {
+        const episodeIndex = Number(event.currentTarget.dataset.episodeIndex);
+        const sceneIndex = Number(event.currentTarget.dataset.sceneIndex);
+        deleteSceneAt(episodeIndex, sceneIndex);
+      }
+      if (action === "add-cancel") {
+        state.addDialog = null;
+        render();
+      }
+      if (action === "add-confirm") {
+        const dialog = state.addDialog;
+        if (!dialog) return;
+        const type = dialog.type || "episode";
+        const content = dialog.content || "";
+        if (type === "episode") {
+          const episodeCount = Math.max(1, Number(dialog.episodeCount || 1));
+          const sceneCount = Math.max(1, Number(dialog.sceneCount || 1));
+          const duplicateScene = findSceneDuplicateInfo(episodeCount, sceneCount);
+          if (duplicateScene) {
+            render();
+            focusAddDialog();
+            return;
+          }
+          if (!String(content).trim()) {
+            state.addDialog = { ...dialog, contentError: "请先填写正文后再添加剧集" };
+            render();
+            focusAddContentInput();
+            return;
+          }
+          state.addDialog = null;
+          addEpisodeSceneWithContent(content, episodeCount, sceneCount);
+          state.sidebarTab = "script";
+          render();
+          return;
+        }
+        state.addDialog = null;
+        const prev = tabItems(type) || "";
+        const next = prev ? `${prev}\n\n${content}` : content;
+        setTabItems(type, next);
+        state.sidebarTab = type;
+        render();
+        focusAuxEditor();
+      }
     });
   });
 
@@ -537,8 +1225,7 @@ function bindEvents() {
   const displayLineNos = document.querySelector("[data-display-line-nos]");
   if (displayEditor) {
     displayEditor.addEventListener("input", () => {
-      const scene = currentScene();
-      if (scene) scene.display = displayEditor.value;
+      syncSceneEditorState();
       if (displayHighlight) displayHighlight.innerHTML = highlightEditableScript(displayEditor.value);
       if (displayLineNos) displayLineNos.textContent = editorLineNumbers(displayEditor.value);
     });
@@ -550,6 +1237,12 @@ function bindEvents() {
       if (displayLineNos) displayLineNos.scrollTop = displayEditor.scrollTop;
     });
   }
+
+  document.querySelectorAll("[data-scene-meta]").forEach((input) => {
+    const syncMetaOnly = () => syncSceneEditorState();
+    input.addEventListener("input", syncMetaOnly);
+    input.addEventListener("change", syncMetaOnly);
+  });
 
   document.querySelectorAll("[data-inline-after-editor]").forEach((editor) => {
     const resizeEditor = () => {
@@ -583,11 +1276,22 @@ function bindEvents() {
     });
   }
 
+  const pasteInput = document.querySelector("#pasteInput");
+  const pasteImportButton = document.querySelector("[data-paste-import-button]");
+  if (pasteInput && pasteImportButton) {
+    const syncPasteImportButton = () => {
+      pasteImportButton.classList.toggle("hidden", countCharacters(pasteInput.value) < 20);
+    };
+    syncPasteImportButton();
+    pasteInput.addEventListener("input", syncPasteImportButton);
+  }
+
   document.querySelectorAll("[data-episode]").forEach((button) => {
     button.addEventListener("click", () => {
       syncDisplayEditor();
       state.activeEpisode = Number(button.dataset.episode);
       state.activeScene = 0;
+      state.sidebarTab = "script";
       state.showValidationIssues = false;
       state.validationStatus = "idle";
       render();
@@ -600,17 +1304,265 @@ function bindEvents() {
       const [episodeIndex, sceneIndex] = button.dataset.scene.split(":").map(Number);
       state.activeEpisode = episodeIndex;
       state.activeScene = sceneIndex;
+      state.sidebarTab = "script";
       state.showValidationIssues = false;
       state.validationStatus = "idle";
       render();
     });
   });
+
+  document.querySelectorAll("[data-aux-main-editor]").forEach((editor) => {
+    const resizeEditor = () => {
+      editor.style.height = "auto";
+      editor.style.height = `${editor.scrollHeight}px`;
+    };
+    resizeEditor();
+    editor.addEventListener("input", () => {
+      const tab = editor.dataset.tab || "";
+      if (!(tab === "outline" || tab === "bio" || tab === "hook")) return;
+      setTabItems(tab, editor.value);
+      resizeEditor();
+    });
+  });
+
+  const addContent = document.querySelector("[data-add-content]");
+  if (addContent) {
+    addContent.addEventListener("input", () => {
+      if (!state.addDialog) return;
+      state.addDialog = { ...state.addDialog, content: addContent.value, contentError: "" };
+    });
+  }
+
+  const addEpisodeCount = document.querySelector("[data-add-episode-count]");
+  if (addEpisodeCount) {
+    addEpisodeCount.addEventListener("input", () => {
+      if (!state.addDialog) return;
+      const nextEpisodeCount = Math.max(1, Number(addEpisodeCount.value || 1));
+      state.addDialog = { ...state.addDialog, episodeCount: nextEpisodeCount, contentError: "" };
+      const addSceneCount = document.querySelector("[data-add-scene-count]");
+      if (addSceneCount) addSceneCount.value = `${nextEpisodeCount}-${Math.max(1, Number(state.addDialog.sceneCount || 1))}`;
+      render();
+      focusEpisodeCountInput();
+    });
+  }
+
+  const addSceneCount = document.querySelector("[data-add-scene-count]");
+  if (addSceneCount) {
+    addSceneCount.addEventListener("input", () => {
+      if (!state.addDialog) return;
+      const parsed = parseSceneSpecInput(addSceneCount.value, state.addDialog.episodeCount);
+      state.addDialog = {
+        ...state.addDialog,
+        contentError: "",
+        episodeCount: parsed.episodeCount,
+        sceneCount: parsed.sceneCount,
+      };
+      const addEpisodeCountInput = document.querySelector("[data-add-episode-count]");
+      if (addEpisodeCountInput) addEpisodeCountInput.value = String(parsed.episodeCount);
+      addSceneCount.value = `${parsed.episodeCount}-${parsed.sceneCount}`;
+      render();
+      focusSceneSpecInput();
+    });
+  }
+}
+
+function focusAuxEditor() {
+  requestAnimationFrame(() => {
+    const target = document.querySelector("[data-aux-main-editor]");
+    if (!target) return;
+    target.scrollIntoView({ block: "center", behavior: "smooth" });
+    target.focus();
+  });
+}
+
+function focusAddDialog() {
+  requestAnimationFrame(() => {
+    const first = document.querySelector("[data-add-episode-count]") || document.querySelector("[data-add-content]");
+    first?.focus();
+  });
+}
+
+function focusAddContentInput() {
+  requestAnimationFrame(() => {
+    const target = document.querySelector("[data-add-content]");
+    target?.focus();
+  });
+}
+
+function currentAddDialogType() {
+  return state.sidebarTab === "script" ? "episode" : state.sidebarTab || "episode";
+}
+
+function focusEpisodeCountInput() {
+  requestAnimationFrame(() => {
+    const input = document.querySelector("[data-add-episode-count]");
+    if (!input) return;
+    input.focus();
+    input.select?.();
+  });
+}
+
+function focusSceneSpecInput() {
+  requestAnimationFrame(() => {
+    const input = document.querySelector("[data-add-scene-count]");
+    if (!input) return;
+    input.focus();
+    const value = input.value || "";
+    input.setSelectionRange(value.length, value.length);
+  });
+}
+
+function parseSceneSpecInput(value, fallbackEpisodeCount = 1) {
+  const raw = String(value || "").trim();
+  const pairMatch = raw.match(/^(\d+)\s*-\s*(\d+)$/);
+  if (pairMatch) {
+    return {
+      episodeCount: Math.max(1, Number(pairMatch[1])),
+      sceneCount: Math.max(1, Number(pairMatch[2])),
+    };
+  }
+  const sceneOnlyMatch = raw.match(/^(\d+)$/);
+  if (sceneOnlyMatch) {
+    return {
+      episodeCount: Math.max(1, Number(fallbackEpisodeCount || 1)),
+      sceneCount: Math.max(1, Number(sceneOnlyMatch[1])),
+    };
+  }
+  return {
+    episodeCount: Math.max(1, Number(fallbackEpisodeCount || 1)),
+    sceneCount: 1,
+  };
+}
+
+function addEpisodeSceneWithContent(content, episodeCount = 1, sceneCount = 1) {
+  const novelTitle = state.rawText.match(/《([^》]+)》/)?.[1] || "新增剧集";
+  const nextEpisodes = state.episodes.slice();
+  const episodeNo = Math.max(1, Number(episodeCount || 1));
+  const targetSceneNo = Math.max(1, Number(sceneCount || 1));
+  const raw = String(content || "").trim() || "（正文开始）";
+  const title = `第${toChineseNumber(episodeNo)}集`;
+  const episodeIndex = findEpisodeIndexByNumber(episodeNo);
+  if (episodeIndex >= 0) {
+    const episode = nextEpisodes[episodeIndex];
+    const scene = buildTargetScene(raw, episodeNo, targetSceneNo, title, novelTitle);
+    const insertSceneIndex = episode.scenes.findIndex((item, index) => sceneNumberParts(item, episodeNo, index + 1).sceneNo > targetSceneNo);
+    const nextSceneIndex = insertSceneIndex >= 0 ? insertSceneIndex : episode.scenes.length;
+    episode.scenes.splice(nextSceneIndex, 0, scene);
+    state.episodes = nextEpisodes;
+    state.activeEpisode = episodeIndex;
+    state.activeScene = nextSceneIndex;
+  } else {
+    const scene = buildTargetScene(raw, episodeNo, targetSceneNo, title, novelTitle);
+    const insertEpisodeIndex = nextEpisodes.findIndex((episode) => episodeNumberFromTitle(episode.title) > episodeNo);
+    const nextEpisodeIndex = insertEpisodeIndex >= 0 ? insertEpisodeIndex : nextEpisodes.length;
+    nextEpisodes.splice(nextEpisodeIndex, 0, { title, scenes: [scene] });
+    state.episodes = nextEpisodes;
+    state.activeEpisode = nextEpisodeIndex;
+    state.activeScene = 0;
+  }
+  state.showValidationIssues = false;
+  state.validationStatus = "idle";
+}
+
+function buildTargetScene(raw, episodeNo, sceneNo, episodeTitle, novelTitle) {
+  const scene = buildScene(raw, Math.max(0, sceneNo - 1), episodeTitle, novelTitle);
+  const parsed = safeParseJson(scene.generated);
+  const sceneNumber = `${episodeNo}-${sceneNo}`;
+  const rawLocation = parsed?.scene_description?.location || inferLocation(raw);
+  const normalizedTime = normalizeTimeOfDay(parsed?.scene_description?.time_of_day || inferTime(raw));
+  const normalizedSceneType = displaySceneType(rawLocation);
+  const normalizedLocation = normalizeSceneMetaLocation(rawLocation);
+  if (parsed) {
+    parsed.episode = episodeTitle;
+    parsed.scene_description = parsed.scene_description || {};
+    parsed.scene_description.scene_number = sceneNumber;
+    scene.generated = JSON.stringify(parsed, null, 2);
+  }
+  scene.title = `第${toChineseNumber(sceneNo)}场`;
+  scene.display = [buildSceneHeaderLine({ sceneNumber, dayPart: normalizedTime === "日景/夜景" ? "" : normalizedTime, sceneType: normalizedSceneType, location: normalizedLocation }), sceneEditorState(scene).body]
+    .filter((part, index) => index === 0 || part !== "")
+    .join("\n")
+    .trimEnd();
+  return scene;
+}
+
+function findSceneDuplicateInfo(episodeNo, sceneNo) {
+  const episodeIndex = findEpisodeIndexByNumber(episodeNo);
+  if (episodeIndex < 0) return null;
+  const episode = state.episodes[episodeIndex];
+  const sceneIndex = episode.scenes.findIndex((scene, index) => sceneNumberParts(scene, episodeNo, index + 1).sceneNo === Number(sceneNo));
+  if (sceneIndex < 0) return null;
+  return {
+    episodeNo: Number(episodeNo),
+    sceneNo: Number(sceneNo),
+    episodeIndex,
+    sceneIndex,
+  };
+}
+
+function sceneNumberParts(scene, fallbackEpisodeNo, fallbackSceneNo) {
+  const parsed = scene?.generated ? safeParseJson(scene.generated) : null;
+  const sceneNumber = parsed?.scene_description?.scene_number || `${fallbackEpisodeNo}-${fallbackSceneNo}`;
+  const match = String(sceneNumber).match(/^(\d+)-(\d+)$/);
+  return {
+    episodeNo: Number(match?.[1] || fallbackEpisodeNo || 1),
+    sceneNo: Number(match?.[2] || fallbackSceneNo || 1),
+  };
+}
+
+function addEpisodeWithContent(content, episodeCount = 1, sceneCount = 1) {
+  addEpisodeSceneWithContent(content, episodeCount, sceneCount);
+}
+
+function deleteEpisodeAt(episodeIndex) {
+  if (!Number.isInteger(episodeIndex) || episodeIndex < 0 || episodeIndex >= state.episodes.length) return;
+  if (state.episodes.length <= 1) {
+    alert(state.englishSidebar ? "Keep at least one episode." : "请至少保留一集");
+    return;
+  }
+  const episodeTitle = state.episodes[episodeIndex]?.title || `第${toChineseNumber(episodeIndex + 1)}集`;
+  const confirmed = window.confirm(state.englishSidebar ? `Delete ${episodeTitle}?` : `确认删除${episodeTitle}？`);
+  if (!confirmed) return;
+  state.episodes.splice(episodeIndex, 1);
+  state.activeEpisode = Math.max(0, Math.min(state.activeEpisode, state.episodes.length - 1));
+  state.activeScene = Math.min(state.activeScene, Math.max(0, (state.episodes[state.activeEpisode]?.scenes.length || 1) - 1));
+  state.aiFixInline = null;
+  state.showValidationIssues = false;
+  render();
+}
+
+function deleteSceneAt(episodeIndex, sceneIndex) {
+  const episode = state.episodes[episodeIndex];
+  if (!episode || !Number.isInteger(sceneIndex) || sceneIndex < 0 || sceneIndex >= episode.scenes.length) return;
+  if (episode.scenes.length <= 1) {
+    deleteEpisodeAt(episodeIndex);
+    return;
+  }
+  const sceneTitle = episode.scenes[sceneIndex]?.title || `${episodeIndex + 1}-${sceneIndex + 1}`;
+  const confirmed = window.confirm(state.englishSidebar ? `Delete ${sceneTitle}?` : `确认删除${sceneTitle}？`);
+  if (!confirmed) return;
+  episode.scenes.splice(sceneIndex, 1);
+  state.activeEpisode = episodeIndex;
+  state.activeScene = Math.max(0, Math.min(state.activeScene, episode.scenes.length - 1));
+  state.aiFixInline = null;
+  state.showValidationIssues = false;
+  render();
+}
+
+function findEpisodeIndexByNumber(episodeNo) {
+  return state.episodes.findIndex((episode) => episodeNumberFromTitle(episode.title) === Number(episodeNo));
+}
+
+function episodeNumberFromTitle(title) {
+  return chineseNumberToArabic(String(title || "").match(/第(.+)集/)?.[1] || "0");
+}
+
+function nextAvailableEpisodeNumber() {
+  return state.episodes.reduce((max, episode) => Math.max(max, episodeNumberFromTitle(episode.title)), 0) + 1;
 }
 
 function syncDisplayEditor() {
-  const displayEditor = document.querySelector("[data-display-editor]");
-  const scene = currentScene();
-  if (displayEditor && scene) scene.display = displayEditor.value;
+  syncSceneEditorState();
 }
 
 function readFile(file) {
@@ -661,6 +1613,53 @@ function completeImport(normalized, label) {
   state.rawText = normalized;
   state.sourceLabel = label;
   state.episodes = parseEpisodes(normalized);
+  if (label === "示例文本") {
+    if (state.episodes[1]?.scenes?.[0]) {
+      const sampleScene = state.episodes[1].scenes[0];
+      const sampleBody = `苏晚星在医院走廊的长椅上坐了整整一夜。傅念星的烧退了，小小一团蜷在她腿上睡着，呼吸均匀。她低头看着孩子的睫毛，长得出奇，像一把小扇子。
+
+和傅景珩一模一样。
+
+“喝点水。”男人在她对面坐下，递过一杯温水。
+
+苏晚星没接：“傅景珩，我要做亲子鉴定。”
+
+“好。”
+
+“我不记得我什么时候和你……”她顿了一下，没把那个词说出口，“我不记得我们之间有过任何关系。”
+
+傅景珩端着水杯的手紧了紧：“我知道。”
+
+“你知道？”她抬眼，“你知道我失忆了？”
+
+“我知道你‘被’失忆了。”他一字一顿。
+
+苏晚星瞳孔骤缩。
+
+她是法医，是S市公安局法医中心最年轻的副主任。她的记忆力是经过严格训练的。她可以记得三年前某具尸体的指甲缝里有几粒沙子，可以记得每一个案卷的细节。
+
+可她想不起来，自己什么时候和傅景珩有过孩子。
+
+这不正常。`;
+      const parsed = sampleScene.generated ? safeParseJson(sampleScene.generated) : null;
+      const sceneNumber = parsed?.scene_description?.scene_number || "2-1";
+      const timeOfDay = parsed?.scene_description?.time_of_day || "";
+      const sceneType = displaySceneType(parsed?.scene_description?.location || "内景");
+      sampleScene.raw = sampleBody;
+      sampleScene.display = [buildSceneHeaderLine({ sceneNumber, dayPart: normalizeTimeOfDay(timeOfDay), sceneType, location: "" }), sampleBody].join("\n");
+      sampleScene.summary = sampleBody.split(/[。！？]/)[0] || sampleScene.summary;
+      sampleScene.minutes = Math.max(1, Math.ceil(countCharacters(sampleBody) / 260));
+      if (parsed) {
+        parsed.scene_description.location = "";
+        parsed.scene_content = sampleBody;
+        sampleScene.generated = JSON.stringify(parsed, null, 2);
+      }
+    }
+    if (state.episodes[0]?.scenes?.[2]) {
+      state.episodes[0].scenes[2].raw = "";
+      state.episodes[0].scenes[2].display = "";
+    }
+  }
   state.activeEpisode = 0;
   state.activeScene = 0;
   state.view = "editor";
@@ -960,6 +1959,101 @@ function displaySceneType(location) {
   if (/外景/.test(location)) return "外景";
   if (/内景/.test(location)) return "内景";
   return "内景";
+}
+
+function englishEpisodeTitle(episode, episodeIndex) {
+  const number = chineseNumberToArabic(String(episode?.title || "").match(/第(.+)集/)?.[1] || "") || episodeIndex + 1;
+  return `Episode ${number}`;
+}
+
+function englishSceneButtonLabel(scene, episodeIndex, sceneIndex) {
+  const fallbackNumber = `${episodeIndex + 1}-${sceneIndex + 1}`;
+  const parsed = scene?.generated ? safeParseJson(scene.generated) : null;
+  const sceneNumber = parsed?.scene_description?.scene_number || fallbackNumber;
+  const location = parsed?.scene_description?.location || "场景名称";
+  const time = parsed?.scene_description?.time_of_day || "";
+  const normalizedSceneNumber = String(sceneNumber).replace(/-/g, ".");
+  const sceneType = displaySceneTypeEnglish(location);
+  const sceneLocation = translateLocationLabel(normalizeEnglishLocation(location)).toUpperCase();
+  const dayPart = translateTimeOfDay(time).toUpperCase();
+  return `${normalizedSceneNumber} ${sceneType}. ${sceneLocation} - ${dayPart}`;
+}
+
+function normalizeEnglishLocation(location) {
+  const normalized = normalizeLocation(location);
+  return String(normalized || "")
+    .replace(/^(内景|外景)\s*/g, "")
+    .replace(/\s+(内景|外景)\s*/g, " ")
+    .trim();
+}
+
+function translateTimeOfDay(time) {
+  if (/凌晨|夜|晚/.test(time)) return "Night";
+  if (/晨|早/.test(time)) return "Morning";
+  if (/昏|夕阳|黄昏/.test(time)) return "Dusk";
+  if (/日|下午|阳光|白天/.test(time)) return "Day";
+  return "Day/Night";
+}
+
+function displaySceneTypeEnglish(location) {
+  if (/外景/.test(location)) return "EXT";
+  if (/内景/.test(location)) return "INT";
+  return "INT";
+}
+
+function translateLocationLabel(location) {
+  const exactMap = {
+    "苏晚星卧室": "Su Wanxing Bedroom",
+    "街道、马路": "Street",
+    "儿童医院急诊走廊": "MORVENE'S PALLACE",
+    "医院走廊长椅": "Hospital Corridor Bench",
+    "法医中心苏晚星办公室": "Su Wanxing Office",
+    "傅家别墅客厅": "Fu Villa Living Room",
+    "傅家别墅餐厅": "Fu Villa Dining Room",
+    "傅家别墅书房": "Fu Villa Study",
+    "傅家祖宅地下室密室": "Fu Manor Basement Chamber",
+    "医院档案室": "Hospital Archive Room",
+    "医院病房": "Hospital Ward",
+    "沈知夏家客厅": "Shen Zhixia Living Room",
+    "书房内": "Study",
+    "酒店房间": "Hotel Room",
+    "傅家别墅后院薰衣草花园": "Fu Villa Lavender Garden",
+    "傅家别墅主卧": "Fu Villa Master Bedroom",
+    "电视屏幕": "TV Screen",
+    "警局门口": "Police Station Gate",
+    "法国普罗旺斯薰衣草田": "Provence Lavender Field",
+    "法国普罗旺斯薰衣草田旁木屋前": "Cabin by Lavender Field",
+    "场景名称": "Location",
+  };
+  if (exactMap[location]) return exactMap[location];
+
+  return String(location || "Location")
+    .replace(/法医中心/g, "Forensics Center ")
+    .replace(/别墅/g, "Villa ")
+    .replace(/祖宅/g, "Manor ")
+    .replace(/儿童医院/g, "Children's Hospital ")
+    .replace(/医院/g, "Hospital ")
+    .replace(/警局/g, "Police Station ")
+    .replace(/卧室/g, "Bedroom")
+    .replace(/客厅/g, "Living Room")
+    .replace(/餐厅/g, "Dining Room")
+    .replace(/书房/g, "Study")
+    .replace(/走廊/g, "Corridor")
+    .replace(/长椅/g, "Bench")
+    .replace(/地下室/g, "Basement")
+    .replace(/密室/g, "Chamber")
+    .replace(/档案室/g, "Archive Room")
+    .replace(/病房/g, "Ward")
+    .replace(/花园/g, "Garden")
+    .replace(/后院/g, "Backyard ")
+    .replace(/主卧/g, "Master Bedroom")
+    .replace(/门口/g, "Gate")
+    .replace(/木屋前/g, "Cabin Front")
+    .replace(/木屋/g, "Cabin")
+    .replace(/薰衣草田/g, "Lavender Field")
+    .replace(/电视屏幕/g, "TV Screen")
+    .replace(/街道、马路/g, "Street")
+    .trim() || "Location";
 }
 
 function chineseNumberToArabic(value) {
