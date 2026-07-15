@@ -63,28 +63,17 @@ const state = {
   hookText: "",
   addDialog: null,
   toast: "",
-  lastSaved: "未保存",
-  loadingLabel: "",
   showValidationIssues: false,
   validationStatus: "idle",
   aiFixInline: null,
+  ignoredContinuityIssues: new Set(),
 };
 
-const DEMO_VALIDATION_GROUPS = [
-  { key: "location", label: "地点缺失", issues: ["第二集 2-1 地点缺失"] },
-  { key: "body", label: "正文缺失", issues: ["第一集1-3 正文为空"] },
-  { key: "continuity", label: "剧集连续性", issues: [] },
-];
-
-function demoValidationIssueCount() {
-  return DEMO_VALIDATION_GROUPS.reduce((total, group) => total + (group.issues?.length || 0), 0);
-}
-
 const app = document.querySelector("#app");
-let loadingTimer = null;
+let validationRefreshFrame = null;
 
 function render() {
-  app.innerHTML = state.view === "upload" ? uploadTemplate() : state.view === "loading" ? loadingTemplate() : editorTemplate();
+  app.innerHTML = state.view === "upload" ? uploadTemplate() : editorTemplate();
   bindEvents();
 }
 
@@ -254,7 +243,7 @@ function activeUploadSampleLang() {
 function uploadFormatGuideText() {
   return `参考格式 
 集标题    格式为“第 X 集 ”
-场次信息  格式为“场次编号  地点  时间（日/夜景） 内/外景 ”。
+场次信息  格式为“集-场次号  地点  时间（日/夜景） 内/外景 ”。
 出场人物；格式为“出场人物：角色A、角色B……”。
 场景描写  统一在句首补 ▲。
 内心独白  统一整理为 【角色名 OS：……】。
@@ -267,7 +256,7 @@ function uploadFormatSampleText(lang = "cn") {
   if (lang === "en") {
     return `Reference Format
 Episode title Format: "Episode X"
-Scene Info Format: "Scene No.  Location  Time (Day/Night)  Int/Ext"
+Scene Info Format: "Episode-Scene No.  Location  Time (Day/Night)  Int/Ext"
 Characters Format: "Characters: Character A, Character B……"
 Scene Description: Start each sentence with ▲ uniformly.
 Inner Monologue: Standardized as 【Character OS: ...】
@@ -276,19 +265,12 @@ Dialogue: Standardized as "Character (expression & movement): Dialogue content"
 
 English Sample
 Episode 1
-1.1 INT. REEFBACK CLAN, MORVENE'S PALLACE - DAY
+1-1 INT. REEFBACK CLAN, MORVENE'S PALLACE - DAY
 Characters:Nerina、Morvane
 ▲A shot of a luxurious and fancy underwater palace.
 ▲Nerina (female mermaid, 20) wearing a fancy dress and delicate jewelry, puts down a bowl of food on a banquet table full of fancy dishes. She sits down, anticipating.
 NERINA (V.O.)
-Today marks the 10th year of our marriage.
-Footsteps echo.
-▲MORVANE (male mermaid, 20) approaches from the shadows. His eyes are cold and murderous. Energy coils in his palm,condensing into a blade of light.
-▲Nerina rises, turns toward him, smiling warmly.
-NERINA
-Morvane, you're home.
-▲The blade slams into her chest.
-▲A wet, brutal sound. The moment of penetration. Blood blooms across her gown.`;
+Today marks the 10th year of our marriage.`;
   }
   return `${guide}
 
@@ -301,11 +283,7 @@ Morvane, you're home.
 沈家媒婆（精明）：苏老爹，咱们明人不说暗话。沈家可是镇上的首富，这二少爷虽说病得重了些，急需个八字相合的姑娘冲喜，但这排场、这银子，那可是别人几辈子都挣不来的。
 ▲苏念禾躲在门帘后，透过缝隙看着那一桌银子，眼神麻木。
 苏念禾os：沈家二少爷快病死了，镇上都知道，这时候嫁进去，若是人死了，弄不好是要殉葬的。这不亚于送死。
-苏父（满脸堆笑，手按在银子上）：是是是，沈家大气！
-沈家媒婆：只是有一点，这婚事急，三天内就得过门！您家这三丫头的八字，可是跟二少爷绝配。
-苏父（毫不犹豫，拍大腿）：嫁！只要沈家不嫌弃她是哑巴，别说三天，明天都能嫁！这闺女，我养这么大，也该回报家里了。
-苏念禾os：大姐出嫁了，二姐嘴甜手巧，爹舍不得。
-苏念禾os：而我，是一个哑巴，自出生起就没说过话。用我这个看不顺眼的哑巴换这么多钱，在他心里，值了。"`;
+`;
 }
 
 function uploadMethodContentTemplate(method) {
@@ -370,7 +348,7 @@ function pasteTextareaInputPlaceholder() {
 function pasteTextareaPlaceholder() {
   return `参考格式 
 集标题    格式为“第 X 集 ”
-场次信息  格式为“场次编号  地点  时间（日/夜景） 内/外景 ”。
+场次信息  格式为“集-场次号  地点  时间（日/夜景） 内/外景 ”。
 出场人物；格式为“出场人物：角色A、角色B……”。
 场景描写  统一在句首补 ▲。
 内心独白  统一整理为 【角色名 OS：……】。
@@ -386,34 +364,7 @@ function pasteTextareaPlaceholder() {
 沈家媒婆（精明）：苏老爹，咱们明人不说暗话。沈家可是镇上的首富，这二少爷虽说病得重了些，急需个八字相合的姑娘冲喜，但这排场、这银子，那可是别人几辈子都挣不来的。
 ▲苏念禾躲在门帘后，透过缝隙看着那一桌银子，眼神麻木。
 苏念禾os：沈家二少爷快病死了，镇上都知道，这时候嫁进去，若是人死了，弄不好是要殉葬的。这不亚于送死。
-苏父（满脸堆笑，手按在银子上）：是是是，沈家大气！
-沈家媒婆：只是有一点，这婚事急，三天内就得过门！您家这三丫头的八字，可是跟二少爷绝配。
-苏父（毫不犹豫，拍大腿）：嫁！只要沈家不嫌弃她是哑巴，别说三天，明天都能嫁！这闺女，我养这么大，也该回报家里了。
-苏念禾os：大姐出嫁了，二姐嘴甜手巧，爹舍不得。
-苏念禾os：而我，是一个哑巴，自出生起就没说过话。用我这个看不顺眼的哑巴换这么多钱，在他心里，值了。"`;
-}
-
-function loadingTemplate() {
-  return shell(`
-    <main class="loading-page">
-      ${routeTemplate()}
-      ${stepsTemplate(1)}
-      <section class="loading-workspace">
-        <div class="loading-card">
-          <div class="loading-orbit" aria-hidden="true">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
-          <p class="eyebrow">Script Parsing</p>
-          <h1>拆解中</h1>
-          <div class="loading-progress"><span></span></div>
-          <p class="note">${escapeHtml(state.loadingLabel || "导入内容")} · 演示流程约 3 秒后自动完成</p>
-          <button type="button" class="secondary-button loading-cancel-button" data-action="cancel-loading">取消拆解</button>
-        </div>
-      </section>
-    </main>
-  `);
+`;
 }
 
 function fileImportTemplate() {
@@ -488,13 +439,10 @@ function editorTemplate() {
   const scene = currentScene();
   const editorState = sceneEditorState(scene);
   const displayText = editorState.body;
-  const displaySceneNumber = formatSceneMetaSceneNumber(editorState.sceneNumber);
-  const displayLocation = formatSceneMetaLocation(editorState.location);
   const review = state.aiFixInline;
   const sidebarTab = state.sidebarTab || "script";
   const showAux = sidebarTab !== "script";
-  const sceneTypeOptions = sceneMetaSceneTypeOptions();
-  const dayPartOptions = sceneMetaDayPartOptions();
+  const validation = collectValidationResults();
   return shell(`
     <main class="editor-page">
       ${editorRouteTemplate()}
@@ -521,11 +469,6 @@ function editorTemplate() {
             <span class="metric">阅读 19分钟</span>
             <span class="metric">拍摄 约19分钟</span>
           </div>
-          <div class="remote-save">
-            <span>✓ 远程已保存 ${state.lastSaved === "未保存" ? "11:17:12" : escapeHtml(state.lastSaved.replace("已保存 ", ""))}</span>
-            <button type="button" class="title-save-button" data-action="save-preview">保存</button>
-            <button type="button" class="title-check-button" data-action="validate-preview">校验</button>
-          </div>
         </div>
         <div class="editor-body">
           <aside class="sidebar">
@@ -535,7 +478,7 @@ function editorTemplate() {
             <button type="button" class="sidebar-catalog-item ${sidebarTab === "hook" ? "active" : ""}" data-action="sidebar-tab" data-tab="hook">${escapeHtml(sidebarTabLabel("hook"))}</button>
           </div>
           <div class="episode-list">
-            ${state.episodes.map(episodeTemplate).join("")}
+            ${state.episodes.map((episode, episodeIndex) => episodeTemplate(episode, episodeIndex, validation.issueCountByScene)).join("")}
           </div>
           </aside>
 
@@ -550,38 +493,6 @@ function editorTemplate() {
                     ? inlineDiffTemplate(review)
                     : `
                   <div class="script-editor-panel">
-                    <div class="scene-meta-grid">
-                      <label class="scene-meta-field">
-                        <span class="scene-meta-label">${escapeHtml(sceneMetaFieldLabel("sceneNumber"))}</span>
-                        <input class="scene-meta-input" data-scene-meta="sceneNumber" type="text" value="${escapeHtml(displaySceneNumber)}" spellcheck="false" readonly />
-                      </label>
-                      <label class="scene-meta-field">
-                        <span class="scene-meta-label">${escapeHtml(sceneMetaFieldLabel("location"))}</span>
-                        <input class="scene-meta-input" data-scene-meta="location" data-raw-value="${escapeHtml(editorState.location)}" type="text" value="${escapeHtml(displayLocation)}" spellcheck="false" />
-                      </label>
-                      <label class="scene-meta-field">
-                        <span class="scene-meta-label">${escapeHtml(sceneMetaFieldLabel("sceneType"))}</span>
-                        <select class="scene-meta-input" data-scene-meta="sceneType">
-                          ${sceneTypeOptions
-                            .map(
-                              (option) =>
-                                `<option value="${escapeHtml(option.value)}" ${editorState.sceneType === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`
-                            )
-                            .join("")}
-                        </select>
-                      </label>
-                      <label class="scene-meta-field">
-                        <span class="scene-meta-label">${escapeHtml(sceneMetaFieldLabel("dayPart"))}</span>
-                        <select class="scene-meta-input" data-scene-meta="dayPart">
-                          ${dayPartOptions
-                            .map(
-                              (option) =>
-                                `<option value="${escapeHtml(option.value)}" ${editorState.dayPart === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`
-                            )
-                            .join("")}
-                        </select>
-                      </label>
-                    </div>
                     <div class="script-editor-wrap">
                       <pre class="script-line-gutter" data-display-line-nos aria-hidden="true">${editorLineNumbers(displayText)}</pre>
                       <pre class="script-highlight" data-display-highlight aria-hidden="true">${highlightEditableScript(displayText)}</pre>
@@ -594,8 +505,8 @@ function editorTemplate() {
             </section>
           </div>
           </section>
+          ${validationPanelTemplate(validation)}
         </div>
-        ${state.showValidationIssues ? issuePopoverTemplate() : ""}
         ${state.addDialog ? addDialogTemplate(state.addDialog) : ""}
       </section>
     </main>
@@ -656,6 +567,7 @@ function addDialogTemplate(dialog) {
 function auxPanelTemplate(tab) {
   const meta = tabMeta(tab);
   const value = tabItems(tab);
+  const isHook = tab === "hook";
   const placeholder =
     tab === "outline"
       ? "请输入正文内容，剧本大纲可为空"
@@ -665,8 +577,12 @@ function auxPanelTemplate(tab) {
           ? "请输入正文内容，前置钩子可为空"
         : "请输入正文内容";
   return `
-    <div class="aux-panel" data-aux-tab="${escapeHtml(tab)}">
-      <textarea class="aux-main-editor" data-aux-main-editor data-tab="${escapeHtml(tab)}" placeholder="${escapeHtml(placeholder)}" spellcheck="false">${escapeHtml(value || "")}</textarea>
+    <div class="aux-panel ${isHook ? "hook-meta-panel" : ""}" data-aux-tab="${escapeHtml(tab)}">
+      ${
+        isHook
+          ? `${episodeMetaFieldsTemplate(state.activeEpisode, "hook")}${sceneMetaFieldsTemplate(currentScene())}`
+          : `<textarea class="aux-main-editor" data-aux-main-editor data-tab="${escapeHtml(tab)}" placeholder="${escapeHtml(placeholder)}" spellcheck="false">${escapeHtml(value || "")}</textarea>`
+      }
     </div>
   `;
 }
@@ -675,6 +591,82 @@ function tabMeta(tab) {
   if (tab === "outline") return { title: "剧本大纲", subtitle: "以要点形式整理剧情脉络与节奏" };
   if (tab === "bio") return { title: "人物小传", subtitle: "补充人物背景、关系与动机" };
   return { title: "前置钩子", subtitle: "放在开头的画面/冲突钩子" };
+}
+
+function episodeMetaFromTitle(title, fallbackNumber = 1) {
+  const match = String(title || "").match(/^第(.+?)集(?:[：:]\s*(.*))?$/);
+  const episodeNumber = chineseNumberToArabic(match?.[1] || String(fallbackNumber || 1));
+  return {
+    episodeNumber: episodeNumber || Number(fallbackNumber || 1),
+    episodeLabel: `第${toChineseNumber(episodeNumber || Number(fallbackNumber || 1))}集`,
+    name: String(match?.[2] || "").trim(),
+  };
+}
+
+function episodeMetaForIndex(episodeIndex = state.activeEpisode) {
+  const episode = state.episodes[episodeIndex];
+  return episodeMetaFromTitle(episode?.title, episodeIndex + 1);
+}
+
+function episodeMetaFieldsTemplate(episodeIndex = state.activeEpisode, context = "scene") {
+  const episodeMeta = episodeMetaForIndex(episodeIndex);
+  const numberLabel = state.englishSidebar ? `Episode ${episodeMeta.episodeNumber}` : episodeMeta.episodeLabel;
+  const namePlaceholder = state.englishSidebar ? "Enter episode name" : "请输入集名";
+  const nameAttribute = context === "hook" ? "data-hook-episode-name" : "data-episode-name";
+  return `
+    <div class="episode-meta-grid" data-episode-meta="${escapeHtml(context)}">
+      <label class="scene-meta-field episode-number-field">
+        <span class="scene-meta-label">${state.englishSidebar ? "Episode No." : "第几集"}</span>
+        <input class="scene-meta-input" data-episode-number type="text" value="${escapeHtml(numberLabel)}" readonly />
+      </label>
+      <label class="scene-meta-field episode-name-field">
+        <span class="scene-meta-label">${state.englishSidebar ? "Episode Name" : "集名"}</span>
+        <input class="scene-meta-input" ${nameAttribute} data-episode-index="${episodeIndex}" type="text" value="${escapeHtml(episodeMeta.name)}" placeholder="${escapeHtml(namePlaceholder)}" />
+      </label>
+    </div>
+  `;
+}
+
+function sceneMetaFieldsTemplate(scene = currentScene()) {
+  const editorState = sceneEditorState(scene);
+  const displaySceneNumber = formatSceneMetaSceneNumber(editorState.sceneNumber);
+  const displayLocation = formatSceneMetaLocation(editorState.location);
+  const sceneTypeOptions = sceneMetaSceneTypeOptions();
+  const dayPartOptions = sceneMetaDayPartOptions();
+  return `
+    <div class="scene-meta-grid" data-scene-meta-panel>
+      <label class="scene-meta-field">
+        <span class="scene-meta-label">${escapeHtml(sceneMetaFieldLabel("sceneNumber"))}</span>
+        <input class="scene-meta-input" data-scene-meta="sceneNumber" type="text" value="${escapeHtml(displaySceneNumber)}" spellcheck="false" readonly />
+      </label>
+      <label class="scene-meta-field">
+        <span class="scene-meta-label">${escapeHtml(sceneMetaFieldLabel("location"))}</span>
+        <input class="scene-meta-input" data-scene-meta="location" data-raw-value="${escapeHtml(editorState.location)}" type="text" value="${escapeHtml(displayLocation)}" spellcheck="false" />
+      </label>
+      <label class="scene-meta-field">
+        <span class="scene-meta-label">${escapeHtml(sceneMetaFieldLabel("sceneType"))}</span>
+        <select class="scene-meta-input" data-scene-meta="sceneType">
+          ${sceneTypeOptions
+            .map(
+              (option) =>
+                `<option value="${escapeHtml(option.value)}" ${editorState.sceneType === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`
+            )
+            .join("")}
+        </select>
+      </label>
+      <label class="scene-meta-field">
+        <span class="scene-meta-label">${escapeHtml(sceneMetaFieldLabel("dayPart"))}</span>
+        <select class="scene-meta-input" data-scene-meta="dayPart">
+          ${dayPartOptions
+            .map(
+              (option) =>
+                `<option value="${escapeHtml(option.value)}" ${editorState.dayPart === option.value ? "selected" : ""}>${escapeHtml(option.label)}</option>`
+            )
+            .join("")}
+        </select>
+      </label>
+    </div>
+  `;
 }
 
 function sidebarTabLabel(tab) {
@@ -742,6 +734,21 @@ function setTabItems(tab, items) {
   else state.hookText = items;
 }
 
+function updateEpisodeName(episodeIndex, name) {
+  const episode = state.episodes[episodeIndex];
+  if (!episode) return;
+  const episodeMeta = episodeMetaForIndex(episodeIndex);
+  const cleanName = String(name || "").trim();
+  episode.title = `${episodeMeta.episodeLabel}${cleanName ? `：${cleanName}` : ""}`;
+  episode.scenes.forEach((scene) => {
+    scene.episodeTitle = episode.title;
+    const parsed = scene.generated ? safeParseJson(scene.generated) : null;
+    if (!parsed) return;
+    parsed.episode = episodeMeta.episodeLabel;
+    scene.generated = JSON.stringify(parsed, null, 2);
+  });
+}
+
 function sceneButtonLabel(scene, episodeIndex, sceneIndex) {
   if (state.englishSidebar) return englishSceneButtonLabel(scene, episodeIndex, sceneIndex);
   const fallbackNumber = `${episodeIndex + 1}-${sceneIndex + 1}`;
@@ -769,7 +776,7 @@ function truncateSidebarLabel(label, maxChars = 10) {
   return `${chars.slice(0, maxChars).join("")}...`;
 }
 
-function episodeTemplate(episode, episodeIndex) {
+function episodeTemplate(episode, episodeIndex, issueCountByScene = new Map()) {
   const isEpisodeActive = state.activeEpisode === episodeIndex;
   const title = state.englishSidebar ? englishEpisodeTitle(episode, episodeIndex) : episode.title;
   const countLabel = state.englishSidebar ? `${episode.scenes.length} Scenes` : `${episode.scenes.length} 场`;
@@ -787,14 +794,19 @@ function episodeTemplate(episode, episodeIndex) {
       <div class="scene-list">
         ${episode.scenes
           .map(
-            (scene, sceneIndex) => `
-              <div class="scene-item-row ${isEpisodeActive && state.activeScene === sceneIndex ? "active" : ""}" data-scene-row="${episodeIndex}:${sceneIndex}">
+            (scene, sceneIndex) => {
+              const sceneKey = `${episodeIndex}:${sceneIndex}`;
+              const issueCount = issueCountByScene.get(sceneKey) || 0;
+              return `
+              <div class="scene-item-row ${isEpisodeActive && state.activeScene === sceneIndex ? "active" : ""} ${issueCount ? "has-issues" : ""}" data-scene-row="${sceneKey}">
                 <button type="button" class="scene-item ${isEpisodeActive && state.activeScene === sceneIndex ? "active" : ""}" data-scene="${episodeIndex}:${sceneIndex}">
-                  <span>${escapeHtml(truncateSidebarLabel(sceneButtonLabel(scene, episodeIndex, sceneIndex)))}</span>
+                  <span class="scene-item-label">${escapeHtml(truncateSidebarLabel(sceneButtonLabel(scene, episodeIndex, sceneIndex)))}</span>
+                  <span class="scene-issue-count ${issueCount ? "" : "hidden"}" data-scene-issue-count="${sceneKey}">${issueCount || ""}</span>
                 </button>
                 <button type="button" class="sidebar-delete-button" data-action="delete-scene" data-episode-index="${episodeIndex}" data-scene-index="${sceneIndex}" aria-label="${escapeHtml(deleteSceneLabel)}" title="${escapeHtml(deleteSceneLabel)}">${escapeHtml(deleteSceneLabel)}</button>
               </div>
-            `
+            `;
+            }
           )
           .join("")}
       </div>
@@ -802,59 +814,166 @@ function episodeTemplate(episode, episodeIndex) {
   `;
 }
 
-function issuePopoverTemplate() {
-  if (state.validationStatus === "fixed") {
-    return `
-      <aside class="issue-popover issue-popover-success">
-        <div class="issue-head">
-          <span class="issue-success-mark">✓</span>
-          <h3>AI 已自动补全</h3>
-        </div>
-        <p class="issue-tip">已补齐缺失场次头，并修正不连续场号。可继续保存或进入下一步。</p>
-      </aside>
-    `;
+function collectValidationResults() {
+  const groups = [
+    { key: "continuity", label: "剧集连续性", issues: [], ignoredIssues: [] },
+    { key: "duplicate", label: "剧集重复", issues: [] },
+    { key: "body", label: "正文缺失", issues: [] },
+    { key: "location", label: "地点缺失", issues: [] },
+  ];
+  const issueCountByScene = new Map();
+  const addIssue = (groupKey, issue) => {
+    const group = groups.find((item) => item.key === groupKey);
+    if (!group) return;
+    if (groupKey === "continuity" && issue.id && state.ignoredContinuityIssues.has(issue.id)) {
+      group.ignoredIssues.push(issue);
+      return;
+    }
+    group.issues.push(issue);
+    const sceneKey = `${issue.episodeIndex}:${issue.sceneIndex}`;
+    issueCountByScene.set(sceneKey, (issueCountByScene.get(sceneKey) || 0) + 1);
+  };
+
+  state.episodes.forEach((episode, episodeIndex) => {
+    const seenSceneNumbers = new Map();
+    (episode.scenes || []).forEach((scene, sceneIndex) => {
+      const sceneMeta = sceneEditorState(scene);
+      const sceneNumber = sceneNumberParts(scene, episodeIndex + 1, sceneIndex + 1);
+      const sceneKey = `${episodeIndex}:${sceneIndex}`;
+      const sceneLabel = `${episode.title.replace(/[：:].*$/, "")} ${sceneNumber.episodeNo}-${sceneNumber.sceneNo}`;
+      const baseIssue = { episodeIndex, sceneIndex, sceneKey };
+      if (!String(sceneMeta.location || "").trim()) {
+        addIssue("location", { ...baseIssue, message: `${sceneLabel} 地点缺失` });
+      }
+      if (!String(sceneMeta.body || "").trim()) {
+        addIssue("body", { ...baseIssue, message: `${sceneLabel} 正文为空` });
+      }
+      const episodeNumber = episodeNumberFromTitle(episode.title) || episodeIndex + 1;
+      const expectedNumber = `${episodeNumber}-${sceneIndex + 1}`;
+      const actualNumber = `${sceneNumber.episodeNo}-${sceneNumber.sceneNo}`;
+      if (actualNumber !== expectedNumber) {
+        const message = sceneIndex === 0 ? `${sceneLabel} 起始场次不连续` : `${sceneLabel} 场次不连续`;
+        addIssue("continuity", {
+          ...baseIssue,
+          id: `${episodeIndex}:${sceneIndex}:${actualNumber}:${expectedNumber}`,
+          message,
+        });
+      }
+      if (seenSceneNumbers.has(actualNumber)) {
+        addIssue("duplicate", { ...baseIssue, message: `${sceneLabel} 剧集重复` });
+      } else {
+        seenSceneNumbers.set(actualNumber, sceneIndex);
+      }
+    });
+  });
+
+  const episodeTitleIndexes = new Map();
+  state.episodes.forEach((episode, episodeIndex) => {
+    const episodeNumber = episodeNumberFromTitle(episode.title);
+    const rawTitle = String(episode.title || "").trim();
+    if (!rawTitle) return;
+    const titleKey = episodeNumber ? `episode:${episodeNumber}` : `title:${rawTitle}`;
+    const indexes = episodeTitleIndexes.get(titleKey) || [];
+    indexes.push(episodeIndex);
+    episodeTitleIndexes.set(titleKey, indexes);
+  });
+  episodeTitleIndexes.forEach((indexes, titleKey) => {
+    if (indexes.length < 2) return;
+    const episodeNumber = Number(titleKey.replace(/^episode:/, ""));
+    const title = episodeNumber ? `第${toChineseNumber(episodeNumber)}集` : titleKey.replace(/^title:/, "");
+    const episodeIndex = indexes[1];
+    addIssue("duplicate", {
+      episodeIndex,
+      sceneIndex: 0,
+      sceneKey: `${episodeIndex}:0`,
+      message: `${title} 重复`,
+    });
+  });
+
+  const headingCounts = new Map();
+  const headingPattern = /(?:^|\n)\s*第([一二三四五六七八九十百千万\d]+)[幕集章节回][：:\s]?[^\n]*/g;
+  for (const match of String(state.rawText || "").matchAll(headingPattern)) {
+    const episodeNo = chineseNumberToArabic(match[1]);
+    headingCounts.set(episodeNo, (headingCounts.get(episodeNo) || 0) + 1);
   }
+  headingCounts.forEach((count, episodeNo) => {
+    if (count < 2) return;
+    const episodeIndex = state.episodes.findIndex((episode) => episodeNumberFromTitle(episode.title) === episodeNo);
+    addIssue("duplicate", {
+      episodeIndex: Math.max(0, episodeIndex),
+      sceneIndex: 0,
+      sceneKey: `${Math.max(0, episodeIndex)}:0`,
+      message: `第${toChineseNumber(episodeNo)}集 剧集重复`,
+    });
+  });
+
+  const issueCount = groups.reduce((total, group) => total + group.issues.length, 0);
+  return { groups, issueCount, issueCountByScene };
+}
+
+function validationPanelTemplate(validation) {
   return `
-    <aside class="issue-popover">
-      <div class="issue-head">
-        <span class="issue-warning">△</span>
-        <h3>${demoValidationIssueCount()} 处格式问题</h3>
-        <span class="issue-chevron">⌄</span>
-      </div>
-      <p class="issue-tip">修改错误后行号定位可能会有误差</p>
-      <div class="issue-list">
-        ${DEMO_VALIDATION_GROUPS.map((group) => issueGroupTemplate(group)).join("")}
-      </div>
+    <aside class="validation-panel" data-validation-panel aria-label="实时校验">
+      ${validationPanelContentTemplate(validation)}
     </aside>
   `;
 }
 
-function issueGroupTemplate(group) {
-  const issues = group?.issues || [];
-  const headAction =
-    group?.key === "location"
-      ? `<button type="button" class="ai-fix-button" data-action="ai-fix-issues">AI自动补全</button>`
-      : "";
-  const body = issues.length
-    ? issues
-        .map(
-          (issue) => `
-            <div class="issue">
-              <span class="issue-checkbox"></span>
-              <span>${escapeHtml(issue)}</span>
-            </div>
-          `
-        )
-        .join("")
-    : `<div class="issue-empty">暂无问题</div>`;
+function validationPanelContentTemplate(validation = collectValidationResults()) {
+  const { groups, issueCount } = validation;
+  const ignoredIssueCount = groups.reduce((total, group) => total + (group.ignoredIssues?.length || 0), 0);
   return `
-    <section class="issue-group" data-issue-group="${escapeHtml(group?.key || "")}">
-      <div class="issue-group-head">
-        <div class="issue-group-title">${escapeHtml(group?.label || "")}</div>
-        ${headAction}
+    <div class="validation-panel-head">
+      <div>
+        <p class="validation-panel-kicker">实时校验</p>
+        <h3>${issueCount ? `${issueCount} 个问题` : ignoredIssueCount ? `${ignoredIssueCount} 个问题已忽略` : "全部通过"}</h3>
       </div>
-      <div class="issue-group-body">
-        ${body}
+      <span class="validation-status-mark ${issueCount ? "has-issues" : ignoredIssueCount ? "is-ignored" : "is-valid"}">${issueCount ? "!" : ignoredIssueCount ? "–" : "✓"}</span>
+    </div>
+    <div class="validation-group-list">
+      ${groups.map(validationGroupTemplate).join("")}
+    </div>
+  `;
+}
+
+function validationGroupTemplate(group) {
+  const issues = group.issues || [];
+  const ignoredIssues = group.ignoredIssues || [];
+  const hasCurrentLocationIssue = group.key === "location" && issues.some((issue) => issue.episodeIndex === state.activeEpisode && issue.sceneIndex === state.activeScene);
+  return `
+    <section class="validation-group" data-validation-group="${escapeHtml(group.key)}">
+      <div class="validation-group-head">
+        <span>${escapeHtml(group.label)}</span>
+        <div class="validation-group-actions">
+          ${hasCurrentLocationIssue ? `<button type="button" class="validation-fix-button" data-validation-fix>AI补全</button>` : ""}
+          <span class="validation-group-count ${issues.length ? "has-issues" : ""}">${issues.length || (ignoredIssues.length ? "已忽略" : "通过")}</span>
+        </div>
+      </div>
+      <div class="validation-group-body">
+        ${
+          issues.length
+            ? issues
+                .map(
+                  (issue) => `
+                    <button type="button" class="validation-issue" data-validation-jump data-episode-index="${issue.episodeIndex}" data-scene-index="${issue.sceneIndex}">
+                      <span class="validation-issue-dot"></span>
+                      <span>${escapeHtml(issue.message)}</span>
+                    </button>
+                  `
+                )
+                .join("")
+            : `<p class="validation-empty">${ignoredIssues.length ? "已忽略当前连续性问题" : "暂无问题"}</p>`
+        }
+        ${
+          group.key === "continuity" && issues.length
+            ? `
+          <div class="validation-continuity-actions">
+            <button type="button" class="validation-action-button validation-ignore-button" data-validation-ignore-continuity>忽略</button>
+            <button type="button" class="validation-action-button validation-adjust-button" data-validation-adjust-continuity>自动调整连续性</button>
+          </div>
+        `
+            : ""
+        }
       </div>
     </section>
   `;
@@ -1014,11 +1133,130 @@ function updateSceneGeneratedMeta(scene, meta, bodyText = "") {
 function syncSceneEditorState() {
   const scene = currentScene();
   const displayEditor = document.querySelector("[data-display-editor]");
-  if (!displayEditor || !scene) return;
-  const bodyText = displayEditor.value;
+  if (!scene) return;
+  const bodyText = displayEditor ? displayEditor.value : sceneEditorState(scene).body;
   const meta = sceneMetaFromDom(scene);
   scene.display = [buildSceneHeaderLine(meta), bodyText].filter((part, index) => index === 0 || part !== "").join("\n").replace(/\n{3,}/g, "\n\n").trimEnd();
   updateSceneGeneratedMeta(scene, meta, bodyText);
+}
+
+function scheduleValidationPanelRefresh() {
+  if (typeof requestAnimationFrame !== "function") {
+    refreshValidationPanel();
+    return;
+  }
+  if (validationRefreshFrame) cancelAnimationFrame(validationRefreshFrame);
+  validationRefreshFrame = requestAnimationFrame(() => {
+    validationRefreshFrame = null;
+    refreshValidationPanel();
+  });
+}
+
+function refreshValidationPanel() {
+  const panel = document.querySelector("[data-validation-panel]");
+  if (!panel) return;
+  const validation = collectValidationResults();
+  panel.innerHTML = validationPanelContentTemplate(validation);
+  const sceneKey = `${state.activeEpisode}:${state.activeScene}`;
+  const issueCount = validation.issueCountByScene.get(sceneKey) || 0;
+  const sceneRow = document.querySelector(`[data-scene-row="${sceneKey}"]`);
+  const issueCountBadge = document.querySelector(`[data-scene-issue-count="${sceneKey}"]`);
+  sceneRow?.classList.toggle("has-issues", issueCount > 0);
+  if (issueCountBadge) {
+    issueCountBadge.textContent = issueCount ? String(issueCount) : "";
+    issueCountBadge.classList.toggle("hidden", issueCount === 0);
+  }
+}
+
+function ignoreContinuityIssues() {
+  const continuityGroup = collectValidationResults().groups.find((group) => group.key === "continuity");
+  if (!continuityGroup?.issues.length) return;
+  continuityGroup.issues.forEach((issue) => {
+    if (issue.id) state.ignoredContinuityIssues.add(issue.id);
+  });
+  state.validationStatus = "ignored";
+  render();
+}
+
+function updateSceneNumber(scene, sceneNumber) {
+  if (!scene) return;
+  const current = sceneEditorState(scene);
+  const nextMeta = { ...current, sceneNumber };
+  const parsed = scene.generated ? safeParseJson(scene.generated) : null;
+  if (parsed) {
+    parsed.scene_description = parsed.scene_description || {};
+    parsed.scene_description.scene_number = sceneNumber;
+    scene.generated = JSON.stringify(parsed, null, 2);
+  }
+  scene.display = [buildSceneHeaderLine(nextMeta), current.body]
+    .filter((part, index) => index === 0 || part !== "")
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trimEnd();
+}
+
+function autoAdjustContinuity() {
+  const continuityGroup = collectValidationResults().groups.find((group) => group.key === "continuity");
+  const issues = continuityGroup?.issues || [];
+  if (!issues.length) return;
+  const firstEpisodeIndex = Math.min(...issues.map((issue) => issue.episodeIndex));
+  state.episodes.slice(firstEpisodeIndex).forEach((episode, offset) => {
+    const episodeIndex = firstEpisodeIndex + offset;
+    const episodeNumber = episodeNumberFromTitle(episode.title) || episodeIndex + 1;
+    (episode.scenes || []).forEach((scene, sceneIndex) => {
+      updateSceneNumber(scene, `${episodeNumber}-${sceneIndex + 1}`);
+    });
+  });
+  state.ignoredContinuityIssues.clear();
+  state.validationStatus = "fixed";
+  state.aiFixInline = null;
+  state.showValidationIssues = false;
+  render();
+}
+
+function bindValidationPanelEvents() {
+  const panel = document.querySelector("[data-validation-panel]");
+  if (!panel || panel.dataset.bound === "true") return;
+  panel.dataset.bound = "true";
+  panel.addEventListener("click", (event) => {
+    if (event.target.closest("[data-validation-ignore-continuity]")) {
+      ignoreContinuityIssues();
+      return;
+    }
+    if (event.target.closest("[data-validation-adjust-continuity]")) {
+      autoAdjustContinuity();
+      return;
+    }
+    if (event.target.closest("[data-validation-fix]")) {
+      startAutoFixCurrentScene();
+      return;
+    }
+    const target = event.target.closest("[data-validation-jump]");
+    if (!target) return;
+    syncDisplayEditor();
+    state.activeEpisode = Number(target.dataset.episodeIndex);
+    state.activeScene = Number(target.dataset.sceneIndex);
+    state.sidebarTab = "script";
+    state.aiFixInline = null;
+    render();
+  });
+}
+
+function startAutoFixCurrentScene() {
+  syncDisplayEditor();
+  const scene = currentScene();
+  if (!scene) return;
+  const from = scene.display ?? "";
+  const to = autoFixSceneText(from, scene);
+  state.showValidationIssues = false;
+  const inline = buildInlineDiff(from, to);
+  if (!inline.changes.length) {
+    state.validationStatus = "fixed";
+    render();
+    return;
+  }
+  state.aiFixInline = inline;
+  render();
 }
 
 function classifyLine(line) {
@@ -1063,13 +1301,6 @@ function bindEvents() {
       }
       if (action === "import-link") importFromLink();
       if (action === "back-upload" || action === "replace") {
-        clearLoadingTimer();
-        state.view = "upload";
-        render();
-      }
-      if (action === "cancel-loading") {
-        clearLoadingTimer();
-        state.loadingLabel = "";
         state.view = "upload";
         render();
       }
@@ -1077,34 +1308,7 @@ function bindEvents() {
         state.toast = "已进入贡献要素步骤";
         render();
       }
-      if (action === "save-preview") {
-        syncDisplayEditor();
-        state.lastSaved = "已保存 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
-        render();
-      }
-      if (action === "validate-preview") {
-        syncDisplayEditor();
-        state.showValidationIssues = true;
-        state.validationStatus = "failed";
-        render();
-      }
-      if (action === "ai-fix-issues") {
-        syncDisplayEditor();
-        const scene = currentScene();
-        if (!scene) return;
-        const from = scene.display ?? "";
-        const to = autoFixSceneText(from, scene);
-        state.showValidationIssues = false;
-        const inline = buildInlineDiff(from, to);
-        if (!inline.changes.length) {
-          state.validationStatus = "fixed";
-          state.lastSaved = "已保存 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
-          render();
-          return;
-        }
-        state.aiFixInline = inline;
-        render();
-      }
+      if (action === "ai-fix-issues") startAutoFixCurrentScene();
       if (action === "inline-accept") {
         const index = Number(event.currentTarget.dataset.index);
         resolveInlineChange(index, "accept");
@@ -1123,7 +1327,6 @@ function bindEvents() {
         if (!state.aiFixInline || !scene) return;
         scene.display = applyInlineDiff(state.aiFixInline);
         state.validationStatus = "fixed";
-        state.lastSaved = "已保存 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
         state.aiFixInline = null;
         state.showValidationIssues = true;
         render();
@@ -1228,6 +1431,7 @@ function bindEvents() {
       syncSceneEditorState();
       if (displayHighlight) displayHighlight.innerHTML = highlightEditableScript(displayEditor.value);
       if (displayLineNos) displayLineNos.textContent = editorLineNumbers(displayEditor.value);
+      scheduleValidationPanelRefresh();
     });
     displayEditor.addEventListener("scroll", () => {
       if (displayHighlight) {
@@ -1239,10 +1443,26 @@ function bindEvents() {
   }
 
   document.querySelectorAll("[data-scene-meta]").forEach((input) => {
-    const syncMetaOnly = () => syncSceneEditorState();
+    const syncMetaOnly = () => {
+      syncSceneEditorState();
+      scheduleValidationPanelRefresh();
+    };
     input.addEventListener("input", syncMetaOnly);
     input.addEventListener("change", syncMetaOnly);
   });
+
+  document.querySelectorAll("[data-episode-name], [data-hook-episode-name]").forEach((input) => {
+    const syncEpisodeName = () => {
+      updateEpisodeName(Number(input.dataset.episodeIndex), input.value);
+    };
+    input.addEventListener("input", syncEpisodeName);
+    input.addEventListener("change", () => {
+      syncEpisodeName();
+      render();
+    });
+  });
+
+  bindValidationPanelEvents();
 
   document.querySelectorAll("[data-inline-after-editor]").forEach((editor) => {
     const resizeEditor = () => {
@@ -1554,7 +1774,7 @@ function findEpisodeIndexByNumber(episodeNo) {
 }
 
 function episodeNumberFromTitle(title) {
-  return chineseNumberToArabic(String(title || "").match(/第(.+)集/)?.[1] || "0");
+  return chineseNumberToArabic(String(title || "").match(/^第([一二三四五六七八九十百千万\d]+)集/)?.[1] || "0");
 }
 
 function nextAvailableEpisodeNumber() {
@@ -1594,19 +1814,16 @@ async function importFromLink() {
 
 function importText(text, label) {
   const normalized = normalizeText(text || SAMPLE_NOVEL);
-  clearLoadingTimer();
   state.rawText = normalized;
   state.sourceLabel = label;
-  state.loadingLabel = label;
   state.episodes = [];
   state.activeEpisode = 0;
   state.activeScene = 0;
-  state.view = "loading";
-  state.lastSaved = "未保存";
+  state.view = "editor";
   state.showValidationIssues = false;
   state.validationStatus = "idle";
-  render();
-  loadingTimer = setTimeout(() => completeImport(normalized, label), 3000);
+  state.ignoredContinuityIssues = new Set();
+  completeImport(normalized, label);
 }
 
 function completeImport(normalized, label) {
@@ -1659,22 +1876,30 @@ function completeImport(normalized, label) {
       state.episodes[0].scenes[2].raw = "";
       state.episodes[0].scenes[2].display = "";
     }
+    const sourceThirdEpisode = state.episodes.find((episode) => episodeNumberFromTitle(episode.title) === 3);
+    if (sourceThirdEpisode) {
+      const duplicateThirdEpisodes = [0, 1].map(() => ({
+        title: "第三集",
+        scenes: sourceThirdEpisode.scenes.map((scene) => ({
+          ...scene,
+          episodeTitle: "第三集",
+          generated: scene.generated,
+        })),
+      }));
+      const thirdEpisodeIndex = state.episodes.indexOf(sourceThirdEpisode);
+      state.episodes.splice(thirdEpisodeIndex + 1, 0, ...duplicateThirdEpisodes);
+    }
+    const discontinuousEpisode = state.episodes.find((episode) => episodeNumberFromTitle(episode.title) === 5);
+    if (discontinuousEpisode?.scenes?.[0]) {
+      updateSceneNumber(discontinuousEpisode.scenes[0], "5-4");
+    }
   }
   state.activeEpisode = 0;
   state.activeScene = 0;
   state.view = "editor";
-  state.loadingLabel = "";
-  state.lastSaved = "远程已保存 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
   state.showValidationIssues = false;
   state.validationStatus = "idle";
-  loadingTimer = null;
   render();
-}
-
-function clearLoadingTimer() {
-  if (!loadingTimer) return;
-  clearTimeout(loadingTimer);
-  loadingTimer = null;
 }
 
 function parseEpisodes(text) {
@@ -2273,12 +2498,10 @@ function resolveInlineChange(index, decision) {
     state.aiFixInline = null;
     state.showValidationIssues = false;
     state.validationStatus = "fixed";
-    state.lastSaved = "已保存 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
     render();
     return;
   }
   state.aiFixInline = nextReview;
-  state.lastSaved = "已保存 " + new Date().toLocaleTimeString("zh-CN", { hour12: false });
   render();
   focusNextInlineChange();
 }
